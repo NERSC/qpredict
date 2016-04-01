@@ -8,12 +8,12 @@ from queues import *
 def main():
 	"""Driver routine"""
 	# Global params
-	dir = "/global/homes/a/ankitb/qpredictor/data/"
-	tstart = "1458591001"
-	db = "staffdb01"
-	user = "usgweb_ro"
-	passwd = "rHpJ1ZdEij8="
-	table = "jobs"
+	dir = 
+	tstart = 
+	db = 
+	user = 
+	passwd = 
+	table = 
 	
 	for machine in ['cori']:
 		debug = DebugQueue(machine)
