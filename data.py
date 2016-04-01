@@ -1,6 +1,12 @@
 import os
 import sys
-import MySQLdb
+
+#dbstuff
+from sqlalchemy import (create_engine, inspect, desc, Table, Column, Integer, String, DateTime, MetaData)
+from sqlalchemy.sql import select
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import json
 
 from queues import *
 import aux
@@ -66,43 +72,60 @@ def loadQueuedJobData(machine,dir,timestamps):
 	return tempJobs
 
 
-def loadCompletedJobData(machine,start,db,user,passwd,table):
+def loadCompletedJobData(machine,start,db,user,passwd,hostname,port):
 	"""Loads completed job data from staffdb01. One caveat is that
 	jobs that did not "finish" are not stored so there may be a mismatch
 	in the jobs listed in queue snapshots and the completed jobs list 
 	returned by this function 
 	"""
-	# Open database connection
-	#mdb = MySQLdb.connect("staffdb01","usgweb_ro","rHpJ1ZdEij8=","jobs" )
-	mdb = MySQLdb.connect(db,user,passwd,table)
+
+	#create engine
+	eng = create_engine('mysql://'+user+':'+passwd+'@'+hostname+':'+port+'/'+db)
+	base = declarative_base()
+	base.metadata.bind = eng
+	base.metadata.reflect(bind=eng)
 	
-	# prepare a cursor object using cursor() method
-	cursor = mdb.cursor()
+	#start session
+	session = sessionmaker(bind=eng)
+	sess = session()
 	
 	t0 = start 
 	
-	sql_cmd="SELECT stepid, numnodes, class, dispatch, start, completion, wallclock, wait_secs, superclass, wallclock_requested FROM summary WHERE hostname='"+machine+"' AND start>"+start
-	
-	# execute SQL query using execute() method.
-	cursor.execute(sql_cmd)
+	summary=base.metadata.tables['summary']
+	query=sess.query(
+		             summary.c['stepid'],
+		             summary.c['numnodes'],
+		             summary.c['class'],
+		             summary.c['dispatch'],
+		             summary.c['start'],
+		             summary.c['completion'],
+		             summary.c['wallclock'],
+		             summary.c['wait_secs'],
+		             summary.c['superclass'],
+		             summary.c['wallclock_requested']
+		             ).filter(
+		             summary.c.start>=start,
+		             summary.c.hostname==machine
+		             )
 	
 	finishedJobs = {}
 	
 	# Fetch a single row using fetchone() method.
-	for data in cursor.fetchall():
-	    jobId = int(data[0].split('.')[0])
-	    qos = data[2]
-	    partition = data[8]
-	    reqWalltime = data[6]
-	    obsWalltime = data[5]-data[4]
-	    reqNodes = data[1]
-	    obsWaitTime = data[7]
-	
-	    finishedJobs[jobId] = CompletedJob(machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsWaitTime)
-	
-	# disconnect from server
-	mdb.close()
-	
+	for data in query.all():
+		jobId = int(data[0].split('.')[0])
+		qos = data[2]
+		partition = data[8]
+		reqWalltime = data[6]
+		obsWalltime = data[5]-data[4]
+		reqNodes = data[1]
+		obsWaitTime = data[7]
+									
+		finishedJobs[jobId] = CompletedJob(machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsWaitTime)
+							
+    # close session
+	sess.close()
+			
+	#return finished jobs as a list of CompletedJob instances
 	return finishedJobs
 
 
