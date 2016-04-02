@@ -46,7 +46,6 @@ def main():
 		# Get completed jobs data
 		completed = data.loadCompletedJobData(machine,tstart,databasename,username,password,hostname,portnumber)
         
-		print completed
 		# Form input and output vectors to pass to ML routine
         
 

@@ -54,8 +54,18 @@ class Job:
 		self.reqWalltime = reqWalltime
 		self.reqNodes = reqNodes
 
-		def getPartition(self):
-			return self.partition
+	def getPartition(self):
+		return self.partition
+		
+	def to_dict(self):
+		result={}
+		result['jobId']=self.jobId
+		result['machine']=self.machine
+		result['partition']=self.partition
+		result['qos']=self.qos
+		result['reqWalltime']=self.reqWalltime
+		result['reqNodes']=self.reqNodes
+		return result
 
 
 class QueuedJob(Job):
@@ -77,12 +87,27 @@ class QueuedJob(Job):
 	def predictWaitTime(self):
 		#TODO this is where output is stored
 		self.predictedWaitTime = 0
+	
+	def to_dict(self):
+		result=Job.to_dict(self)
+		result['priority']=self.priority
+		result['age']=self.age
+		result['fairshare']=self.fairshare
+		result['qos_int']=self.qos_int
+		result['rank_p']=self.rank_p
+		return result
 
 class CompletedJob(Job):
 	def __init__(self,machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsWaitTime):
 		Job.__init__(self,machine,jobId,partition,qos,reqWalltime,reqNodes)
 		self.obsWaitTime = obsWaitTime
 		self.obsWalltime = obsWalltime
+	
+	def to_dict(self):
+		result=Job.to_dict(self)
+		result['obsWaitTime']=self.obsWaitTime
+		result['obsWalltime']=self.obsWalltime
+		return result
 
 # Debug/test
 if __name__ == "__main__":
