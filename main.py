@@ -11,9 +11,9 @@ import pandas as pd
 def main():
     """Driver routine"""
     # Global params
-    dir = "/Users/tkurth/Dropbox/Documents/NERSC/JobWaitPredict/ankit/qpredict/data/"
+    dir = "/global/homes/t/tkurth/JOBWAITPREDICT/data/"
     
-    with open('/Users/tkurth/Dropbox/Documents/NERSC/General/mysql_staffdb_creds.json') as mysql_creds:
+    with open('/global/homes/t/tkurth/JOBWAITPREDICT/general/mysql_staffdb_creds.json') as mysql_creds:
     	conn_config = json.load(mysql_creds)
     
     hostname=conn_config['host']
