@@ -29,8 +29,8 @@ class Cost(NervanaObject):
         """
         return self.funcgrad(y, t)
 
-class MeanSquared(Cost):
 
+class MeanSquared(Cost):
 
     def __init__(self):
         """

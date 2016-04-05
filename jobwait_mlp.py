@@ -30,10 +30,11 @@ from custom_dataiterator import CustomDataIterator
 from neon.initializers import Xavier
 from neon.layers import GeneralizedCost, Affine, Linear
 from neon.models import Model
-from neon.optimizers import GradientDescentMomentum
+from neon.optimizers import GradientDescentMomentum, Adam
 from neon.transforms import Rectlin#, MeanSquared
-from cost import MeanSquared
 from neon.util.argparser import NeonArgparser
+from sklearn import preprocessing
+from cost import MeanSquared
 
 
 # parse the command line arguments
@@ -41,64 +42,60 @@ parser = NeonArgparser(__doc__)
 
 args = parser.parse_args()
 
-print args
-
 logger = logging.getLogger()
 logger.setLevel(args.log_thresh)
 
 # hyperparameters
 num_epochs = args.epochs
 
+#preprocessor
+std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
+
 # load up the mnist data set
 # split into train and tests sets
-#load data from csv-files
+#load data from csv-files and rescale
 #training
 traindf=pd.DataFrame.from_csv('cori_data_train.csv')
 ncols=traindf.shape[1]
-tmpmat=traindf.as_matrix()
-X_train_shape=tmpmat[:,1:].shape
+tmpmat=std_scale.fit_transform(traindf.as_matrix())
 X_train=tmpmat[:,1:]
 y_train=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
+
 #validation
 validdf=pd.DataFrame.from_csv('cori_data_validate.csv')
 ncols=validdf.shape[1]
-tmpmat=validdf.as_matrix()
-X_valid_shape=tmpmat[:,1:].shape
+tmpmat=std_scale.transform(validdf.as_matrix())
 X_valid=tmpmat[:,1:]
 y_valid=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
+
 #test
 testdf=pd.DataFrame.from_csv('cori_data_test.csv')
 ncols=testdf.shape[1]
-tmpmat=testdf.as_matrix()
-X_test_shape=tmpmat[:,1:].shape
+tmpmat=std_scale.transform(testdf.as_matrix())
 X_test=tmpmat[:,1:]
 y_test=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
-# setup a training set iterator
-train_set = CustomDataIterator(X_train, lshape=(X_train_shape[1]), y_c=y_train)
-# setup a validation data set iterator
-valid_set = CustomDataIterator(X_valid, lshape=(X_valid_shape[1]), y_c=y_valid)
-# setup a validation data set iterator
-test_set = CustomDataIterator(X_test, lshape=(X_test_shape[1]), y_c=y_test)
 
-#for xval,yval in train_set:
-#    print (xval.asnumpyarray())[:,0]
-#    print (yval.asnumpyarray())[:,0]
-#    break
-#quit()
+# setup a training set iterator
+train_set = CustomDataIterator(X_train, lshape=(X_train.shape[1]), y_c=y_train)
+# setup a validation data set iterator
+valid_set = CustomDataIterator(X_valid, lshape=(X_valid.shape[1]), y_c=y_valid)
+# setup a validation data set iterator
+test_set = CustomDataIterator(X_test, lshape=(X_test.shape[1]), y_c=y_test)
 
 # setup weight initialization function
 init_norm = Xavier()
 
 # setup model layers
-layers = [Affine(nout=X_train_shape[1], init=init_norm, activation=Rectlin()),
+layers = [Affine(nout=X_train.shape[1], init=init_norm, activation=Rectlin()),
           Linear(nout=1, init=init_norm)]
 
 # setup cost function as CrossEntropy
 cost = GeneralizedCost(costfunc=MeanSquared())
 
 # setup optimizer
-optimizer = GradientDescentMomentum(0.1, momentum_coef=0.9, stochastic_round=args.rounding)
+#optimizer = GradientDescentMomentum(0.0001, momentum_coef=0.9, stochastic_round=args.rounding)
+optimizer = Adam(learning_rate=0.0001, beta_1=0.9, beta_2=0.999)
 
 # initialize model object
 mlp = Model(layers=layers)
