@@ -1,6 +1,7 @@
 from neon import NervanaObject
 import numpy as np
 
+#general cost functions
 class Cost(NervanaObject):
 
     """
@@ -30,7 +31,8 @@ class Cost(NervanaObject):
         return self.funcgrad(y, t)
 
 
-class MeanSquared(Cost):
+#specialized cost functions
+class MeanSquaredLoss(Cost):
 
     def __init__(self):
         """
@@ -64,4 +66,83 @@ class SmoothL1Loss(Cost):
         """
         self.func = lambda y, t: self.be.sum(self.smoothL1(y - t), axis=0)
         self.funcgrad = lambda y, t: self.smoothL1grad(y - t)
+
+
+#general metric class
+class Metric(Cost):
+
+    """
+    Base class for Metric
+    Meant for non-smooth costs that we just want to check on validation.
+    """
+
+    def __call__(self, y, t):
+        """
+        To implement in derived classes
+        Args:
+            y (Tensor or OpTree): Output of previous layer or model
+            t (Tensor or OpTree): True targets corresponding to y
+        Returns:
+            float: Returns the metric
+        """
+        raise NotImplementedError()
+
+    def bprop(self, y, t):
+        """
+        Not relevant for Metric
+        """
+        pass
+
+
+#specialized metrics:
+class MeanSquaredMetric(Metric):
+
+    """
+    Compute the MSQMetric
+    """
+
+    def __init__(self):
+        self.outputs = self.be.iobuf(1)  # Contains per record metric
+        self.metric_names = ['MeanSquared']
+
+    def __call__(self, y, t, calcrange=slice(0, None)):
+        """
+        Compute the msq error metric
+        Args:
+            y (Tensor or OpTree): Output of previous layer or model
+            t (Tensor or OpTree): True targets corresponding to y
+        Returns:
+            float: Returns the metric
+        """
+        # compute error
+        msq=self.be.square(y - t) / 2.
+        self.outputs=msq.astensor()
+
+        return self.outputs.get()[:, calcrange].mean()
+
+
+class SmoothL1Metric(Metric):
+
+    """
+    Compute the SmoothL1Metric
+    """
+
+    def __init__(self):
+        self.outputs = self.be.iobuf(1)  # Contains per record metric
+        self.metric_names = ['SmoothL1']
+
+    def __call__(self, y, t, calcrange=slice(0, None)):
+        """
+        Compute the smooth-L1 error metric
+        Args:
+            y (Tensor or OpTree): Output of previous layer or model
+            t (Tensor or OpTree): True targets corresponding to y
+        Returns:
+            float: Returns the metric
+        """
+        # compute error
+        sl1=SmoothL1Loss()
+        self.outputs=sl1.smoothL1(y-t).astensor()
+
+        return self.outputs.get()[:, calcrange].mean()
         

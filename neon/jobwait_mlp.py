@@ -34,7 +34,7 @@ from neon.optimizers import GradientDescentMomentum, Adam
 from neon.transforms import Rectlin#, MeanSquared
 from neon.util.argparser import NeonArgparser
 from sklearn import preprocessing
-from cost import MeanSquared, SmoothL1Loss
+from cost import MeanSquaredLoss, MeanSquaredMetric, SmoothL1Loss, SmoothL1Metric
 
 
 # parse the command line arguments
@@ -107,4 +107,4 @@ callbacks = Callbacks(mlp, train_set, eval_set=valid_set, **args.callback_args)
 # run fit
 mlp.fit(train_set, optimizer=optimizer, num_epochs=args.epochs, cost=cost, callbacks=callbacks)
 
-#print('L2-error = %.4f%%' % (mlp.eval(valid_set, metric=SumSquared())))
+print('Evaluation Error = %.4f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
