@@ -64,7 +64,7 @@ class SmoothL1Loss(Cost):
         """
         Initialize the smooth L1 loss cost function
         """
-        self.func = lambda y, t: self.be.sum(self.smoothL1(y - t), axis=0)
+        self.func = lambda y, t: self.be.mean(self.smoothL1(y - t), axis=0)
         self.funcgrad = lambda y, t: self.smoothL1grad(y - t)
 
 
