@@ -28,13 +28,13 @@ import numpy as np
 from neon.callbacks.callbacks import Callbacks
 from custom_dataiterator import CustomDataIterator
 from neon.initializers import Xavier
-from neon.layers import GeneralizedCost, Affine, Linear
+from neon.layers import GeneralizedCost, Affine, Linear, Dropout
 from neon.models import Model
 from neon.optimizers import GradientDescentMomentum, Adam
 from neon.transforms import Rectlin#, MeanSquared
 from neon.util.argparser import NeonArgparser
 from sklearn import preprocessing
-from cost import MeanSquared
+from cost import MeanSquared, SmoothL1Loss
 
 
 # parse the command line arguments
@@ -88,10 +88,11 @@ init_norm = Xavier()
 
 # setup model layers
 layers = [Affine(nout=X_train.shape[1], init=init_norm, activation=Rectlin()),
+          Dropout(keep=0.5),
           Linear(nout=1, init=init_norm)]
 
 # setup cost function as CrossEntropy
-cost = GeneralizedCost(costfunc=MeanSquared())
+cost = GeneralizedCost(costfunc=SmoothL1Loss())
 
 # setup optimizer
 #optimizer = GradientDescentMomentum(0.0001, momentum_coef=0.9, stochastic_round=args.rounding)
