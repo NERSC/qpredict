@@ -20,6 +20,7 @@ Examples:
         checkpoint file named checkpoint.pkl.
 """
 
+import os
 import logging
 import csv
 import pandas as pd
@@ -35,6 +36,13 @@ from neon.transforms import Rectlin#, MeanSquared
 from neon.util.argparser import NeonArgparser
 from sklearn import preprocessing
 from cost import MeanSquaredLoss, MeanSquaredMetric, SmoothL1Loss, SmoothL1Metric
+
+
+# Stop if validation error ever increases from epoch to epoch
+def stop_func(s, v):
+	if s is None:
+		return (v, False)
+	return (min(v, s), v > s)
 
 
 # parse the command line arguments
@@ -75,7 +83,6 @@ tmpmat=std_scale.transform(testdf.as_matrix())
 X_test=tmpmat[:,1:]
 y_test=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
-
 # setup a training set iterator
 train_set = CustomDataIterator(X_train, lshape=(X_train.shape[1]), y_c=y_train)
 # setup a validation data set iterator
@@ -102,9 +109,17 @@ optimizer = Adam(learning_rate=0.0001, beta_1=0.9, beta_2=0.999)
 mlp = Model(layers=layers)
 
 # configure callbacks
+if args.callback_args['eval_freq'] is None:
+	args.callback_args['eval_freq'] = 1
+
+# configure callbacks
 callbacks = Callbacks(mlp, train_set, eval_set=valid_set, **args.callback_args)
+
+callbacks.add_early_stop_callback(stop_func)
+callbacks.add_save_best_state_callback(os.path.join(args.data_dir, "early_stop-best_state.pkl"))
 
 # run fit
 mlp.fit(train_set, optimizer=optimizer, num_epochs=args.epochs, cost=cost, callbacks=callbacks)
 
 print('Evaluation Error = %.4f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
+print('Test set error = %.4f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
