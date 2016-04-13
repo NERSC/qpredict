@@ -22,6 +22,7 @@ Examples:
 
 import logging
 import csv
+import os
 import pandas as pd
 import numpy as np
 
@@ -30,11 +31,19 @@ from custom_dataiterator import CustomDataIterator
 from neon.initializers import Xavier
 from neon.layers import GeneralizedCost, Affine, Linear, Dropout
 from neon.models import Model
-from neon.optimizers import GradientDescentMomentum, Adam
+from neon.optimizers import GradientDescentMomentum, Adam, ExpSchedule
 from neon.transforms import Rectlin#, MeanSquared
 from neon.util.argparser import NeonArgparser
 from sklearn import preprocessing
+from preprocess import feature_scaler
 from cost import MeanSquaredLoss, MeanSquaredMetric, SmoothL1Loss, SmoothL1Metric
+
+
+# Stop if validation error ever increases from epoch to epoch
+def stop_func(s, v):
+	if s is None:
+		return (v, False)
+	return (min(v, s), v > s)
 
 
 # parse the command line arguments
@@ -49,7 +58,11 @@ logger.setLevel(args.log_thresh)
 num_epochs = args.epochs
 
 #preprocessor
-std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
+#std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
+std_scale = feature_scaler(type='Standardizer',with_mean=True,with_std=True)
+
+#number of non one-hot encoded features, including ground truth
+num_feat=9
 
 # load up the mnist data set
 # split into train and tests sets
@@ -57,21 +70,24 @@ std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
 #training
 traindf=pd.DataFrame.from_csv('cori_data_train.csv')
 ncols=traindf.shape[1]
-tmpmat=std_scale.fit_transform(traindf.as_matrix())
+tmpmat=traindf.as_matrix()
+tmpmat[:,:num_feat]=std_scale.fit_transform(tmpmat[:,:num_feat])
 X_train=tmpmat[:,1:]
 y_train=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
 #validation
 validdf=pd.DataFrame.from_csv('cori_data_validate.csv')
 ncols=validdf.shape[1]
-tmpmat=std_scale.transform(validdf.as_matrix())
+tmpmat=validdf.as_matrix()
+tmpmat[:,:num_feat]=std_scale.transform(tmpmat[:,:num_feat])
 X_valid=tmpmat[:,1:]
 y_valid=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
 #test
 testdf=pd.DataFrame.from_csv('cori_data_test.csv')
 ncols=testdf.shape[1]
-tmpmat=std_scale.transform(testdf.as_matrix())
+tmpmat=testdf.as_matrix()
+tmpmat[:,:num_feat]=std_scale.transform(tmpmat[:,:num_feat])
 X_test=tmpmat[:,1:]
 y_test=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
@@ -95,16 +111,34 @@ layers = [Affine(nout=X_train.shape[1], init=init_norm, activation=Rectlin()),
 cost = GeneralizedCost(costfunc=SmoothL1Loss())
 
 # setup optimizer
-#optimizer = GradientDescentMomentum(0.0001, momentum_coef=0.9, stochastic_round=args.rounding)
-optimizer = Adam(learning_rate=0.0001, beta_1=0.9, beta_2=0.999)
+#schedule
+#schedule = ExpSchedule(decay=0.3)
+#optimizer = GradientDescentMomentum(0.0001, momentum_coef=0.9, stochastic_round=args.rounding, schedule=schedule)
+optimizer = Adam(learning_rate=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1.e-8)
 
 # initialize model object
 mlp = Model(layers=layers)
 
 # configure callbacks
-callbacks = Callbacks(mlp, train_set, eval_set=valid_set, **args.callback_args)
+if args.callback_args['eval_freq'] is None:
+	args.callback_args['eval_freq'] = 1
+
+# configure callbacks
+callbacks = Callbacks(mlp, eval_set=valid_set, **args.callback_args)
+
+#callbacks.add_early_stop_callback(stop_func)
+#callbacks.add_save_best_state_callback(os.path.join(args.data_dir, "early_stop-best_state.pkl"))
 
 # run fit
 mlp.fit(train_set, optimizer=optimizer, num_epochs=args.epochs, cost=cost, callbacks=callbacks)
 
+#evaluate model
 print('Evaluation Error = %.4f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
+
+
+# save the model
+print 'Saving model parameters!'
+mlp.save_params("jobwait_model.prm")
+
+# save the preprocessor vectors:
+np.savez("jobwait_preproc.prm", mean=std_scale.meanvals, std=std_scale.stdvals)
