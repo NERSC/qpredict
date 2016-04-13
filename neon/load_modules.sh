@@ -10,4 +10,5 @@ module load mysqlpython/1.2.5
 module load scikit-learn
 module load matplotlib
 
-module load neon/1.1.4
+#module load python/2.7-anaconda
+module load neon/1.3.0

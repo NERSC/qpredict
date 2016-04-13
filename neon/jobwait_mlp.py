@@ -45,7 +45,10 @@ def stop_func(s, v):
 	return (min(v, s), v > s)
 
 
+# TODO Most of this file should be made a module called training.py
+# To be called from main.py
 # parse the command line arguments
+# TODO This needs to be called in main with args passed to training
 parser = NeonArgparser(__doc__)
 
 args = parser.parse_args()
@@ -66,6 +69,8 @@ std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
 traindf=pd.DataFrame.from_csv('cori_data_train.csv')
 ncols=traindf.shape[1]
 tmpmat=std_scale.fit_transform(traindf.as_matrix())
+print std_scale.scale_
+print std_scale.mean_
 X_train=tmpmat[:,1:]
 y_train=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
@@ -109,6 +114,8 @@ optimizer = Adam(learning_rate=0.0001, beta_1=0.9, beta_2=0.999)
 mlp = Model(layers=layers)
 
 # configure callbacks
+print dir(args)
+
 if args.callback_args['eval_freq'] is None:
 	args.callback_args['eval_freq'] = 1
 
@@ -123,3 +130,19 @@ mlp.fit(train_set, optimizer=optimizer, num_epochs=args.epochs, cost=cost, callb
 
 print('Evaluation Error = %.4f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
 print('Test set error = %.4f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
+
+# Saving the model
+print 'Saving model parameters!'
+mlp.save_params("jobwait_model.prm")
+
+# Reloading saved model
+# This should go in run.py
+mlp=Model("jobwait_model.prm")
+print('Test set error = %.4f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
+
+
+
+
+
+
+
