@@ -36,7 +36,7 @@ from neon.optimizers import GradientDescentMomentum, Adam, ExpSchedule
 from neon.transforms import Rectlin#, MeanSquared
 from neon.util.argparser import NeonArgparser
 from sklearn import preprocessing
-from preprocess import feature_scaler
+#from preprocess import feature_scaler
 from cost import MeanSquaredLoss, MeanSquaredMetric, SmoothL1Loss, SmoothL1Metric
 
 
@@ -62,8 +62,8 @@ logger.setLevel(args.log_thresh)
 num_epochs = args.epochs
 
 #preprocessor
-#std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
-std_scale = feature_scaler(type='Standardizer',with_mean=True,with_std=True)
+std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
+#std_scale = feature_scaler(type='Standardizer',with_mean=True,with_std=True)
 
 #number of non one-hot encoded features, including ground truth
 num_feat=9
