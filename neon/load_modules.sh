@@ -8,4 +8,4 @@ module load mysqlpython/1.2.5
 module load scikit-learn
 module load matplotlib
 
-module load neon/1.3.0
+module load neon/1.3.0_mkl
