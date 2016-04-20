@@ -36,7 +36,7 @@ from neon.optimizers import GradientDescentMomentum, Adam, ExpSchedule
 from neon.transforms import Rectlin#, MeanSquared
 from neon.util.argparser import NeonArgparser
 from sklearn import preprocessing
-#from preprocess import feature_scaler
+#from preprocess import feature_scaler #Thorsten's custom preprocessor
 from cost import MeanSquaredLoss, MeanSquaredMetric, SmoothL1Loss, SmoothL1Metric
 
 
@@ -158,9 +158,5 @@ mlp.save_params("jobwait_model.prm")
 mlp=Model("jobwait_model.prm")
 print('Test set error = %.4f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
 
-# save the model
-print 'Saving model parameters!'
-mlp.save_params("jobwait_model.prm")
-
 # save the preprocessor vectors:
-np.savez("jobwait_preproc.prm", mean=std_scale.meanvals, std=std_scale.stdvals)
+np.savez("jobwait_preproc", mean=std_scale.mean_, std=std_scale.scale_)
