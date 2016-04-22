@@ -7,5 +7,5 @@ export EVAL_FREQ=10
 
 for NUM_EPOCHS in 300 
 do
-    python jobwait_mlp.py -o jobwait_output.hd5 -e $NUM_EPOCHS --batch_size $BATCH_SIZE --eval_freq $EVAL_FREQ
+    python train_mlp.py -o jobwait_output.hd5 -e $NUM_EPOCHS --batch_size $BATCH_SIZE --eval_freq $EVAL_FREQ
 done 

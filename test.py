@@ -19,4 +19,3 @@ def create_all_sets(hotdf, train_fraction, validation_fraction, test_fraction):
     shuffledf[train_stop:validation_stop].to_csv('csv/cori_data_validate.csv',header=True)
     #test set:
     shuffledf[validation_stop:].to_csv('csv/cori_data_test.csv',header=True)
-

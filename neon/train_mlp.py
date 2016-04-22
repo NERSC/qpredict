@@ -92,6 +92,8 @@ tmpmat[:,:num_feat]=std_scale.transform(tmpmat[:,:num_feat])
 X_valid=tmpmat[:,1:]
 y_valid=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
+print 'Shape of tmpmat ', tmpmat.shape
+
 #test
 testdf=pd.DataFrame.from_csv('cori_data_test.csv')
 ncols=testdf.shape[1]

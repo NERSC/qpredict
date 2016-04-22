@@ -28,9 +28,9 @@ def main():
 	test_fraction = float(input['test_fraction'])
     
     for machine in machines:
-		debug = DebugQueue(machine)
-		regular = RegQueue(machine)
-		shared = SharedQueue(machine)
+		#debug = DebugQueue(machine)
+		#regular = RegQueue(machine)
+		#shared = SharedQueue(machine)
 	
 		queue,completed = data.get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend)
 		hotdf = data.create_df(queue,completed,one_hot)

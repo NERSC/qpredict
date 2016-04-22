@@ -18,7 +18,7 @@ from queues import *
 def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
 	"""	Creates a new test set independent from one used in training/validation/test sequence """
 	
-	snapshot_file = base_dir+"input/snapshots_"+machine+".txt"
+	snapshot_file = base_dir+"input/snapshots_"+machine+"_test.txt"
 
 	print 'Opening snapshots file'
 	try:
