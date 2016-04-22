@@ -18,7 +18,7 @@ from queues import *
 def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
 	"""	Creates a new test set independent from one used in training/validation/test sequence """
 	
-	snapshot_file = base_dir+"input/snapshots_"+machine+"_test.txt"
+	snapshot_file = base_dir+"input/snapshots_"+machine+".txt"
 
 	print 'Opening snapshots file'
 	try:
@@ -96,6 +96,9 @@ def create_df(queue, completed, one_hot):
 		hotdf['partition_tag']=alldf.apply(lambda x: partitions.index(x['partition_tag']),axis=1)
 		hotdf['qos_tag']=hotdf.apply(lambda x: qosclasses.index(x['qos_tag']),axis=1)
 		
+		print partitions
+		print qosclasses
+
 		#all columns with "tag" suffixes get one-hot encoded:
 		onehotcolumns=[x for x in hotdf.columns[2:] if 'tag' in x]
 		for feature in onehotcolumns:
