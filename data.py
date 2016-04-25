@@ -41,7 +41,9 @@ def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
 	istart = timestamps_all.index(tstart)
 	iend = timestamps_all.index(tend)
 
-	timestamps = timestamps_all#[istart:iend]
+	print 'Start-end indices for timestamps', istart, iend
+
+	timestamps = timestamps_all[istart:iend]
 
 	queue = {}
 	completed = {}
@@ -85,6 +87,8 @@ def create_df(queue, completed, one_hot):
 	
 	#only take values where partition is specified
 	alldf.dropna(axis=0,how='any',inplace=True)
+	# TODO temporary for testing 
+	alldf = alldf[alldf.qos_tag != 'serialize']
 	
 	alldf.reset_index(drop=True,inplace=True)
 
