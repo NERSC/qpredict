@@ -33,7 +33,7 @@ from neon.initializers import Xavier
 from neon.layers import GeneralizedCost, Affine, Linear, Dropout
 from neon.models import Model
 from neon.optimizers import GradientDescentMomentum, Adam, ExpSchedule
-from neon.transforms import Rectlin#, MeanSquared
+from neon.transforms import Rectlin, Explin, Tanh#, MeanSquared
 from neon.util.argparser import NeonArgparser
 from sklearn import preprocessing
 #from preprocess import feature_scaler #Thorsten's custom preprocessor
@@ -52,8 +52,16 @@ def stop_func(s, v):
 # parse the command line arguments
 # TODO This needs to be called in main with args passed to training
 parser = NeonArgparser(__doc__)
-
+parser.add_argument('--initial_learning_rate',type=float,default=1.e-4,help='initial learning rate for the optimizer')
+parser.add_argument('--hidden_size',type=int,default=-1,help='size of the hidden layer. -1 means that it is set to the size of the input layer')
+parser.add_argument('--keep_probability',type=float,default=0.5,help='keep probability in dropout layer')
+parser.add_argument('--activation_function',type=str,default='ReLU',help='activation function used: supports ReLU, ELU, Tanh')
 args = parser.parse_args()
+print "Initial learning rate: ",args.initial_learning_rate
+print "Hidden Size: ",args.hidden_size
+print "Keep probability: ",args.keep_probability
+print "Activation Function: ",args.activation_function
+
 
 logger = logging.getLogger()
 logger.setLevel(args.log_thresh)
@@ -113,8 +121,22 @@ test_set = CustomDataIterator(X_test, lshape=(X_test.shape[1]), y_c=y_test)
 init_norm = Xavier()
 
 # setup model layers
-layers = [Affine(nout=X_train.shape[1], init=init_norm, activation=Rectlin()),
-          Dropout(keep=0.5),
+actfunc=None
+if args.activation_function=='ReLU':
+	actfunc=Rectlin()
+elif args.activation_function=='ELU':
+    actfunc=Explin()
+elif args.activation_function=='Tanh':
+    actfunc=Tanh()
+else:
+	raise ValueError('activation_function invalid: please specify either ReLU, ELU, Tanh')
+
+#topology:
+if args.hidden_size<0:
+    args.hidden_size=X_train.shape[1]
+    
+layers = [Affine(nout=args.hidden_size, init=init_norm, activation=actfunc),
+          Dropout(keep=args.keep_probability),
           Linear(nout=1, init=init_norm)]
 
 # setup cost function as CrossEntropy
@@ -124,7 +146,7 @@ cost = GeneralizedCost(costfunc=SmoothL1Loss())
 #schedule
 #schedule = ExpSchedule(decay=0.3)
 #optimizer = GradientDescentMomentum(0.0001, momentum_coef=0.9, stochastic_round=args.rounding, schedule=schedule)
-optimizer = Adam(learning_rate=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1.e-8)
+optimizer = Adam(learning_rate=args.initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1.e-8)
 
 # initialize model object
 mlp = Model(layers=layers)
@@ -136,9 +158,6 @@ if args.callback_args['eval_freq'] is None:
 # configure callbacks
 callbacks = Callbacks(mlp, eval_set=valid_set, **args.callback_args)
 
-#callbacks.add_early_stop_callback(stop_func)
-#callbacks.add_save_best_state_callback(os.path.join(args.data_dir, "early_stop-best_state.pkl"))
-
 callbacks.add_early_stop_callback(stop_func)
 callbacks.add_save_best_state_callback(os.path.join(args.data_dir, "early_stop-best_state.pkl"))
 
@@ -146,8 +165,9 @@ callbacks.add_save_best_state_callback(os.path.join(args.data_dir, "early_stop-b
 mlp.fit(train_set, optimizer=optimizer, num_epochs=args.epochs, cost=cost, callbacks=callbacks)
 
 #evaluate model
+valid_error=mlp.eval(test_set, metric=SmoothL1Metric())
 print('Evaluation Error = %.4f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
-print('Test set error = %.4f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
+print('Validation set error = %.4f'%(valid_error))
 
 # Saving the model
 print 'Saving model parameters!'
@@ -160,3 +180,6 @@ print('Test set error = %.4f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
 
 # save the preprocessor vectors:
 np.savez("jobwait_preproc", mean=std_scale.mean_, std=std_scale.scale_)
+
+#return error on validation set (for using it with spearmint)
+#return valid_error
