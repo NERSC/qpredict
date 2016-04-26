@@ -39,7 +39,7 @@ std = np.reshape(std, (1,std.shape[0]))
 #tmpmat=std_scale.fit_transform(traindf.as_matrix())
 
 #test
-testdf=pd.DataFrame.from_csv('../csv/cori_data_test.csv')
+testdf=pd.DataFrame.from_csv('cori_new_data_test.csv')
 ncols=testdf.shape[1]
 tmpmat=testdf.as_matrix()
 tmpmat[:,:num_feat] -= mean

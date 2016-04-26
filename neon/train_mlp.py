@@ -80,12 +80,12 @@ num_feat=9
 # split into train and tests sets
 #load data from csv-files and rescale
 #training
-traindf=pd.DataFrame.from_csv('../csv/cori_data_train.csv')
+traindf=pd.DataFrame.from_csv('cori_data_train.csv')
 ncols=traindf.shape[1]
 
 tmpmat=std_scale.fit_transform(traindf.as_matrix())
-#print std_scale.scale_
-#print std_scale.mean_
+print std_scale.scale_
+print std_scale.mean_
 
 tmpmat=traindf.as_matrix()
 tmpmat[:,:num_feat]=std_scale.fit_transform(tmpmat[:,:num_feat])
@@ -93,7 +93,7 @@ X_train=tmpmat[:,1:]
 y_train=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
 #validation
-validdf=pd.DataFrame.from_csv('../csv/cori_data_validate.csv')
+validdf=pd.DataFrame.from_csv('cori_data_validate.csv')
 ncols=validdf.shape[1]
 tmpmat=validdf.as_matrix()
 tmpmat[:,:num_feat]=std_scale.transform(tmpmat[:,:num_feat])
@@ -103,7 +103,7 @@ y_valid=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 print 'Shape of tmpmat ', tmpmat.shape
 
 #test
-testdf=pd.DataFrame.from_csv('../csv/cori_data_test.csv')
+testdf=pd.DataFrame.from_csv('cori_data_test.csv')
 ncols=testdf.shape[1]
 tmpmat=testdf.as_matrix()
 tmpmat[:,:num_feat]=std_scale.transform(tmpmat[:,:num_feat])
@@ -152,6 +152,8 @@ optimizer = Adam(learning_rate=args.initial_learning_rate, beta_1=0.9, beta_2=0.
 mlp = Model(layers=layers)
 
 # configure callbacks
+print dir(args)
+
 if args.callback_args['eval_freq'] is None:
 	args.callback_args['eval_freq'] = 1
 
