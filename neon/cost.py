@@ -68,6 +68,31 @@ class SmoothL1Loss(Cost):
         self.funcgrad = lambda y, t: self.smoothL1grad(y - t)
 
 
+class SmoothRobustLoss(Cost):
+
+    """
+    A smooth Tukey biweight loss cost function from Fast-RCNN
+    http://arxiv.org/pdf/1504.08083v2.pdf
+    L1 loss is less sensitive to the outlier than L2 loss used in RCNN
+    """
+
+    def smoothRobust(self, x):
+        ex=self.be.exp(-self.beta*self.be.square(x))
+        return (1-ex)/(1+ex)
+
+    def smoothRobustgrad(self, x):
+        ex=self.be.exp(-self.beta*self.be.square(x))
+        return 4.*self.beta*x*ex/self.be.square(1+ex)
+
+    def __init__(self,beta):
+        """
+        Initialize the smooth Robust loss cost function
+        """
+        self.beta=beta
+        self.func = lambda y, t: self.be.mean(self.smoothRobust(y - t), axis=0)
+        self.funcgrad = lambda y, t: self.smoothRobustgrad(y - t)
+
+
 #general metric class
 class Metric(Cost):
 

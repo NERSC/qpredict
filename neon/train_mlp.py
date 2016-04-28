@@ -38,7 +38,7 @@ from neon.transforms import Rectlin, Explin, Tanh#, MeanSquared
 from neon.util.argparser import NeonArgparser
 from sklearn import preprocessing
 #from preprocess import feature_scaler #Thorsten's custom preprocessor
-from cost import MeanSquaredLoss, MeanSquaredMetric, SmoothL1Loss, SmoothL1Metric
+from cost import MeanSquaredLoss, MeanSquaredMetric, SmoothL1Loss, SmoothL1Metric, SmoothRobustLoss
 
 
 # Stop if validation error ever increases from epoch to epoch
@@ -145,6 +145,7 @@ layers = [Affine(nout=args.hidden_size, init=init_norm, activation=actfunc),
 
 # setup cost function as CrossEntropy
 cost = GeneralizedCost(costfunc=SmoothL1Loss())
+#cost = GeneralizedCost(costfunc=SmoothRobustLoss(beta=1.e-5))
 
 # setup optimizer
 #schedule
@@ -156,8 +157,6 @@ optimizer = Adam(learning_rate=args.initial_learning_rate, beta_1=0.9, beta_2=0.
 mlp = Model(layers=layers)
 
 # configure callbacks
-print dir(args)
-
 if args.callback_args['eval_freq'] is None:
 	args.callback_args['eval_freq'] = 1
 
@@ -172,8 +171,8 @@ mlp.fit(train_set, optimizer=optimizer, num_epochs=args.epochs, cost=cost, callb
 
 #evaluate model
 valid_error=mlp.eval(test_set, metric=SmoothL1Metric())
-print('Evaluation Error = %.4f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
-print('Validation set error = %.4f'%(valid_error))
+print('Evaluation Error = %.8f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
+print('Validation set error = %.8f'%(valid_error))
 
 # Saving the model
 print 'Saving model parameters!'
@@ -182,7 +181,7 @@ mlp.save_params("jobwait_model.prm")
 # Reloading saved model
 # This should go in run.py
 mlp=Model("jobwait_model.prm")
-print('Test set error = %.4f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
+print('Test set error = %.8f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
 
 # save the preprocessor vectors:
 np.savez("jobwait_preproc", mean=std_scale.mean_, std=std_scale.scale_)
