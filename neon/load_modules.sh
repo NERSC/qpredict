@@ -8,6 +8,7 @@ module load mysqlpython/1.2.5
 module load spearmint
 module load scikit-learn
 module load matplotlib
+module load mongodb
 
 FOO=/global/homes/t/tkurth/JOBWAITPREDICT/qpredict/neon
 
