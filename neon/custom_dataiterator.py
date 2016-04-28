@@ -59,6 +59,7 @@ class CustomDataIterator(NervanaObject):
         self.start = 0
 
         # on device tensor with full dataset
+        print X		
         self.Xdev = [self.be.array(x) for x in X]
         # mini-batch sized buffer
         self.Xbuf = [self.be.iobuf(x.shape[1]) for x in X]
