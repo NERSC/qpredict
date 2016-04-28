@@ -28,7 +28,8 @@ import pandas as pd
 import numpy as np
 
 from neon.callbacks.callbacks import Callbacks
-from custom_dataiterator import CustomDataIterator
+#from custom_dataiterator import CustomDataIterator
+from neon.data.dataiterator import ArrayIterator
 from neon.initializers import Xavier
 from neon.layers import GeneralizedCost, Affine, Linear, Dropout
 from neon.models import Model
@@ -80,42 +81,45 @@ num_feat=9
 # split into train and tests sets
 #load data from csv-files and rescale
 #training
-traindf=pd.DataFrame.from_csv('cori_data_train.csv')
+traindf=pd.DataFrame.from_csv('../csv/cori_data_train.csv')
 ncols=traindf.shape[1]
 
-tmpmat=std_scale.fit_transform(traindf.as_matrix())
+tmpmat=traindf.as_matrix()
+tmpmat[:,1:num_feat]=std_scale.fit_transform(tmpmat[:,1:num_feat])
 print std_scale.scale_
 print std_scale.mean_
 
 tmpmat=traindf.as_matrix()
-tmpmat[:,:num_feat]=std_scale.fit_transform(tmpmat[:,:num_feat])
+tmpmat[:,1:num_feat]=std_scale.fit_transform(tmpmat[:,1:num_feat])
 X_train=tmpmat[:,1:]
 y_train=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
 #validation
-validdf=pd.DataFrame.from_csv('cori_data_validate.csv')
+validdf=pd.DataFrame.from_csv('../csv/cori_data_validate.csv')
 ncols=validdf.shape[1]
 tmpmat=validdf.as_matrix()
-tmpmat[:,:num_feat]=std_scale.transform(tmpmat[:,:num_feat])
+tmpmat[:,1:num_feat]=std_scale.transform(tmpmat[:,1:num_feat])
 X_valid=tmpmat[:,1:]
 y_valid=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
-print 'Shape of tmpmat ', tmpmat.shape
-
 #test
-testdf=pd.DataFrame.from_csv('cori_data_test.csv')
+testdf=pd.DataFrame.from_csv('../csv/cori_data_test.csv')
 ncols=testdf.shape[1]
 tmpmat=testdf.as_matrix()
-tmpmat[:,:num_feat]=std_scale.transform(tmpmat[:,:num_feat])
+tmpmat[:,1:num_feat]=std_scale.transform(tmpmat[:,1:num_feat])
 X_test=tmpmat[:,1:]
 y_test=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
+
 # setup a training set iterator
-train_set = CustomDataIterator(X_train, lshape=(X_train.shape[1]), y_c=y_train)
+#train_set = CustomDataIterator(X_train, lshape=(X_train.shape[1]), y_c=y_train)
+train_set = ArrayIterator(X_train, lshape=(X_train.shape[1]), y=y_train, make_onehot=False)
 # setup a validation data set iterator
-valid_set = CustomDataIterator(X_valid, lshape=(X_valid.shape[1]), y_c=y_valid)
+#valid_set = CustomDataIterator(X_valid, lshape=(X_valid.shape[1]), y_c=y_valid)
+valid_set = ArrayIterator(X_valid, lshape=(X_valid.shape[1]), y=y_valid, make_onehot=False)
 # setup a validation data set iterator
-test_set = CustomDataIterator(X_test, lshape=(X_test.shape[1]), y_c=y_test)
+#test_set = CustomDataIterator(X_test, lshape=(X_test.shape[1]), y_c=y_test)
+test_set = ArrayIterator(X_test, lshape=(X_test.shape[1]), y=y_test, make_onehot=False)
 
 # setup weight initialization function
 init_norm = Xavier()
