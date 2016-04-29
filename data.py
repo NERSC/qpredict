@@ -71,7 +71,7 @@ def one_hot_encode(inputdf):
 	hotdf=inputdf.copy()
 	
 	#all columns with "tag" suffixes get one-hot encoded:
-	onehotcolumns=[x for x in hotdf.columns[2:] if 'tag' in x]
+	onehotcolumns=[x for x in hotdf.columns[:] if 'tag' in x]
 
 	#one-hot-encode one-by-one
 	for feature in onehotcolumns:
@@ -83,16 +83,14 @@ def one_hot_encode(inputdf):
 		
 		#what is the number of categories:
 		num_cat=len(categorylist)
-		#create dataframe to fill
+		#create empty dataframe to fill
 		fname=feature.split('tag')[0]
 		hotcols=[fname+str(c) for c in range(num_cat)]
-		tmpcols=['jobId']+hotcols
-		tmpdf=pd.DataFrame(columns=tmpcols)
-		tmpdf[['jobId']]=hotdf[['jobId']].copy()
+		tmpdf=pd.DataFrame(index=np.arange(hotdf.shape[0]),columns=hotcols)
 		for c in hotcols:
 			tmpdf[hotcols]=0.
-		#join back the frames
-		hotdf=pd.merge(hotdf,tmpdf,how='inner',on='jobId').copy()
+		#join back the frames. merge on index, do not create another ID field
+		hotdf=pd.merge(hotdf,tmpdf,how='inner',left_index=True,right_index=True).copy()
 		
 		#set the hotcols to the correct values
 		for i in range(num_cat):
@@ -110,7 +108,14 @@ def create_df_from_json(inputjson, one_hot):
 	#convert to df:
 	inputdf=pd.read_json(inputjson)
 	inputdf=inputdf.reindex_axis(featurelist+[z+'_tag' for z in onehotfeaturelist],axis=1)
+	
+	#rename one-hot columns
+	ohrenamedict={x[0]:x[1] for x in zip(onehotfeaturelist,[z+'_tag' for z in onehotfeaturelist])}
+	inputdf.rename(columns=ohrenamedict,inplace=True)
+	
+	#reset-index
 	inputdf.reset_index(drop=True,inplace=True)
+
 	#one-hot-encode:
 	if one_hot:
 		return one_hot_encode(inputdf)
