@@ -97,15 +97,27 @@ def one_hot_encode(inputdf):
 		#set the hotcols to the correct values
 		for i in range(num_cat):
 			hotdf.loc[hotdf[feature]==i,fname+str(i)]=1.
+		
+		#remove feature as it is one-hot encoded now
+		del hotdf[feature]
 	
 	#return result
 	return hotdf
 
 
-def create_df_from_json(json_data):
+#create (one-hot-encoded) dataframe from json input:
+def create_df_from_json(inputjson, one_hot):
 	#convert to df:
-	jsondf=pd.read_json(json_data)
-	jsondf.reindex_axis(featurelist,axis=1)
+	inputdf=pd.read_json(inputjson)
+	inputdf=inputdf.reindex_axis(featurelist+[z+'_tag' for z in onehotfeaturelist],axis=1)
+	inputdf.reset_index(drop=True,inplace=True)
+	#one-hot-encode:
+	if one_hot:
+		return one_hot_encode(inputdf)
+	else:
+		for feature in onehotfeaturelist:
+			del inputdf[feature]
+		return inputdf
 
 
 def create_df(queue, completed, one_hot):
@@ -143,7 +155,7 @@ def create_df(queue, completed, one_hot):
 	#reset index after shuffling x and y.
 	alldf.reset_index(drop=True,inplace=True)
 	
-	#
+	#determine if one-hot encoding is necessary
 	if one_hot:
 		hotdf=one_hot_encode(alldf)
 #	#generate class labels for one-hot encoding:
@@ -178,12 +190,14 @@ def create_df(queue, completed, one_hot):
 	else:
 		#just copy as a view
 		hotdf=alldf
-	
-	#delete tag columns
-	del hotdf['qos_tag']
-	del hotdf['partition_tag']
+		for feature in onehotfeaturelist:
+			del hotdf[feature]
+
+	print hotdf
+	print hotdf.columns
 
 	return hotdf
+
 
 def loadQueuedJobData(machine,data_dir,timestamps):
 	"""Loads jobs data from stored snapshots. One subtlety here 
