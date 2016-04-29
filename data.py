@@ -15,6 +15,12 @@ import aux
 import data
 from queues import *
 
+#this is canonical now
+labelname='obsWaitTime_label'
+featurelist=['age','fairshare','priority','qos_int','rank_p','reqNodes','reqWalltime']
+onehotfeaturelist=['partition','qos']
+
+
 def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
 	"""	Creates a new test set independent from one used in training/validation/test sequence """
 	
@@ -58,12 +64,57 @@ def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
 
 	return queue, completed
 
+
+#do one-hot encoding on columns tagged by <name>_tag
+def one_hot_encode(inputdf):
+	#copy input:
+	hotdf=inputdf.copy()
+	
+	#all columns with "tag" suffixes get one-hot encoded:
+	onehotcolumns=[x for x in hotdf.columns[2:] if 'tag' in x]
+
+	#one-hot-encode one-by-one
+	for feature in onehotcolumns:
+		#all possible values the feature can acquire, sort the list to make sure that it is the same
+		#for different calls to this function
+		categorylist=sorted(list(set(inputdf[feature])))
+		#assign numerical value
+		hotdf[feature]=inputdf.apply(lambda x: categorylist.index(x[feature]),axis=1)
+		
+		#what is the number of categories:
+		num_cat=len(categorylist)
+		#create dataframe to fill
+		fname=feature.split('tag')[0]
+		hotcols=[fname+str(c) for c in range(num_cat)]
+		tmpcols=['jobId']+hotcols
+		tmpdf=pd.DataFrame(columns=tmpcols)
+		tmpdf[['jobId']]=hotdf[['jobId']].copy()
+		for c in hotcols:
+			tmpdf[hotcols]=0.
+		#join back the frames
+		hotdf=pd.merge(hotdf,tmpdf,how='inner',on='jobId').copy()
+		
+		#set the hotcols to the correct values
+		for i in range(num_cat):
+			hotdf.loc[hotdf[feature]==i,fname+str(i)]=1.
+	
+	#return result
+	return hotdf
+
+
+def create_df_from_json(json_data):
+	#convert to df:
+	jsondf=pd.read_json(json_data)
+	jsondf.reindex_axis(featurelist,axis=1)
+
+
 def create_df(queue, completed, one_hot):
 	"""Packs queued and completed job data in dataframes"""
 	#Pack it in dataframes
 	queuedf=pd.DataFrame([x.to_dict() for x in queue.values()])
 	#rename columns with class labels to apply one-hot later
-	queuedf.rename(columns={'partition':'partition_tag','qos':'qos_tag'},inplace=True)
+	ohrenamedict={x[0]:x[1] for x in zip(onehotfeaturelist,[z+'_tag' for z in onehotfeaturelist])}
+	queuedf.rename(columns=ohrenamedict,inplace=True)
 	queuedf.sort_values(by=['jobId'],inplace=True)
 
 	#completed
@@ -76,7 +127,7 @@ def create_df(queue, completed, one_hot):
 	del compdf['obsWalltime']
 	compdf['obsWaitTime']=compdf['obsWaitTime'].astype(float)
 	#observed waittime is label
-	compdf.rename(columns={'obsWaitTime':'obsWaitTime_label'},inplace=True)
+	compdf.rename(columns={'obsWaitTime':labelname},inplace=True)
 	compdf.sort_values(by=['jobId'],inplace=True)
 	
 	#merge the frames on jobid:
@@ -85,39 +136,45 @@ def create_df(queue, completed, one_hot):
 	
 	#only take values where partition is specified
 	alldf.dropna(axis=0,how='any',inplace=True)
+
+	#reorder to globally common order:
+	alldf=alldf.reindex_axis(['jobId',labelname]+featurelist+[z+'_tag' for z in onehotfeaturelist],axis=1)
 	
+	#reset index after shuffling x and y.
 	alldf.reset_index(drop=True,inplace=True)
-
+	
+	#
 	if one_hot:
-	#generate class labels for one-hot encoding:
-		partitions=list(set(alldf['partition_tag']))
-		qosclasses=list(set(alldf['qos_tag']))
-		hotdf=alldf.copy()
-		hotdf['partition_tag']=alldf.apply(lambda x: partitions.index(x['partition_tag']),axis=1)
-		hotdf['qos_tag']=hotdf.apply(lambda x: qosclasses.index(x['qos_tag']),axis=1)
-		
-		print partitions
-		print qosclasses
-
-		#all columns with "tag" suffixes get one-hot encoded:
-		onehotcolumns=[x for x in hotdf.columns[2:] if 'tag' in x]
-		for feature in onehotcolumns:
-			#what is the number of categories:
-			num_cat=np.max(hotdf[feature])+1
-			#create dataframe to fill
-			fname=feature.split('tag')[0]
-			hotcols=[fname+str(c) for c in range(num_cat)]
-			tmpcols=['jobId']+hotcols
-			tmpdf=pd.DataFrame(columns=tmpcols)
-			tmpdf[['jobId']]=hotdf[['jobId']].copy()
-			for c in hotcols:
-				tmpdf[hotcols]=0.
-			#join back the frames
-			hotdf=pd.merge(hotdf,tmpdf,how='inner',on='jobId').copy()
-			
-			#set the hotcols to the correct values
-			for i in range(num_cat):
-				hotdf.loc[hotdf[feature]==i,fname+str(i)]=1.
+		hotdf=one_hot_encode(alldf)
+#	#generate class labels for one-hot encoding:
+#		partitions=list(set(alldf['partition_tag']))
+#		qosclasses=list(set(alldf['qos_tag']))
+#		hotdf=alldf.copy()
+#		hotdf['partition_tag']=alldf.apply(lambda x: partitions.index(x['partition_tag']),axis=1)
+#		hotdf['qos_tag']=hotdf.apply(lambda x: qosclasses.index(x['qos_tag']),axis=1)
+#		
+#		print partitions
+#		print qosclasses
+#
+#		#all columns with "tag" suffixes get one-hot encoded:
+#		onehotcolumns=[x for x in hotdf.columns[2:] if 'tag' in x]
+#		for feature in onehotcolumns:
+#			#what is the number of categories:
+#			num_cat=np.max(hotdf[feature])+1
+#			#create dataframe to fill
+#			fname=feature.split('tag')[0]
+#			hotcols=[fname+str(c) for c in range(num_cat)]
+#			tmpcols=['jobId']+hotcols
+#			tmpdf=pd.DataFrame(columns=tmpcols)
+#			tmpdf[['jobId']]=hotdf[['jobId']].copy()
+#			for c in hotcols:
+#				tmpdf[hotcols]=0.
+#			#join back the frames
+#			hotdf=pd.merge(hotdf,tmpdf,how='inner',on='jobId').copy()
+#			
+#			#set the hotcols to the correct values
+#			for i in range(num_cat):
+#				hotdf.loc[hotdf[feature]==i,fname+str(i)]=1.
 	else:
 		#just copy as a view
 		hotdf=alldf
