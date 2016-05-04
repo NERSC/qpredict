@@ -49,6 +49,8 @@ def predict_mlp(inputdf):
     X_pred[:,:num_feat] /= std
     pred_set = ArrayIterator(X=X_pred, make_onehot=False)
 
+    print X_pred.shape
+
     #predict and return
     return mlp.get_outputs(pred_set)
 
@@ -81,7 +83,7 @@ def main():
     
     #create data frame with correct feature ordering, one-hot encoding:
     tmpdf=data.create_df_from_json(json_data,True)
-        
+    
     #convert dataframe to json object, redo one-hot:
     print predict_mlp(tmpdf)
     

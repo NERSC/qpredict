@@ -119,7 +119,7 @@ train_set = ArrayIterator(X_train, lshape=(X_train.shape[1]), y=y_train, make_on
 valid_set = ArrayIterator(X_valid, lshape=(X_valid.shape[1]), y=y_valid, make_onehot=False)
 # setup a validation data set iterator
 #test_set = CustomDataIterator(X_test, lshape=(X_test.shape[1]), y_c=y_test)
-test_set = ArrayIterator(X_test, lshape=(X_test.shape[1]), y=y_test, make_onehot=False)
+#test_set = ArrayIterator(X_test, lshape=(X_test.shape[1]), y=y_test, make_onehot=False)
 
 # setup weight initialization function
 init_norm = Xavier()
@@ -181,7 +181,7 @@ mlp.save_params("jobwait_model.prm")
 # Reloading saved model
 # This should go in run.py
 mlp=Model("jobwait_model.prm")
-print('Test set error = %.8f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
+print('Test set error = %.8f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
 
 # save the preprocessor vectors:
 np.savez("jobwait_preproc", mean=std_scale.mean_, std=std_scale.scale_)
