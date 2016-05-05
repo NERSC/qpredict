@@ -170,7 +170,7 @@ callbacks.add_save_best_state_callback(os.path.join(args.data_dir, "early_stop-b
 mlp.fit(train_set, optimizer=optimizer, num_epochs=args.epochs, cost=cost, callbacks=callbacks)
 
 #evaluate model
-valid_error=mlp.eval(test_set, metric=SmoothL1Metric())
+valid_error=mlp.eval(valid_set, metric=SmoothL1Metric())
 print('Evaluation Error = %.8f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
 print('Validation set error = %.8f'%(valid_error))
 
@@ -181,7 +181,7 @@ mlp.save_params("jobwait_model.prm")
 # Reloading saved model
 # This should go in run.py
 mlp=Model("jobwait_model.prm")
-print('Test set error = %.8f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
+print('Validation set error = %.8f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
 
 # save the preprocessor vectors:
 np.savez("jobwait_preproc", mean=std_scale.mean_, std=std_scale.scale_)
