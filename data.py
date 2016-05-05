@@ -78,6 +78,10 @@ def one_hot_encode(inputdf):
 		#all possible values the feature can acquire, sort the list to make sure that it is the same
 		#for different calls to this function
 		categorylist=sorted(list(set(inputdf[feature])))
+		
+		#print the categories, useful for seeing which one-hot encoded features map to which tag:
+		print "Categories for feature ",feature,": ",categorylist
+		
 		#assign numerical value
 		hotdf[feature]=inputdf.apply(lambda x: categorylist.index(x[feature]),axis=1)
 		
