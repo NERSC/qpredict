@@ -20,6 +20,7 @@ from cost import MeanSquaredLoss, MeanSquaredMetric, SmoothL1Loss, SmoothL1Metri
 
 #plotting
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import matplotlib.ticker as tick
 
 def y_fmt(x, y):
@@ -77,10 +78,11 @@ errors=[x/3600. for x in errors]
 # obtain some statistics on the metric score
 meanval=np.mean(errors)
 medianval=np.median(errors)
-central68=0.5*(np.percentile(errors, 84)-np.percentile(errors, 16))
+central68=(np.percentile(errors, 16),np.percentile(errors, 84))
+central95=(np.percentile(errors, 2.5),np.percentile(errors, 97.5))
 
 #create histogram
-Y,X=np.histogram(errors,bins=100)
+Y,X=np.histogram(errors,bins=50)
 width=0.25*(X[1]-X[0])
 X=[0.5*(X[i]+X[i+1])-width/2 for i in range(len(X)-1)]
 #select the maximal value in X which still has values
@@ -92,14 +94,22 @@ ymax=np.max(Y)*10
 fig = plt.figure()
 ax = fig.add_subplot(111)
 
-#ax.xaxis.set_major_formatter(tick.FuncFormatter(lambda x, pos: ('%.2f')%(x/3600)))
 plt.yscale('log')
 plt.xlim((0,xmax))
 plt.ylim((0,ymax))
 plt.xlabel('estimation error in hours')
 plt.ylabel('log(#entries)')
-plt.vlines(meanval, 0, ymax, colors='r', linestyles='solid', label='mean')
-plt.bar(X,Y,width=width,label='data')
+bars=plt.bar(X,Y,width=width,label='data')
+vlinemed=plt.vlines(medianval, 0, ymax, colors='r', linewidth=2, linestyles='solid', label='mean')
+rec=ax.add_patch(patches.Rectangle(
+        (central95[0], 0),   # (x,y)
+        central95[1]-central95[0],          # width
+        ymax,          # height
+        alpha=0.2,
+        linewidth=0.5
+    ))
+blue_patch = patches.Patch(color='b',alpha=0.2 , label='95% CL')
+plt.legend(handles=[bars, vlinemed, blue_patch])
 plt.savefig('stats/error_distribution.pdf')
 
 
