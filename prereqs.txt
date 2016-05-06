@@ -1,4 +1,0 @@
-This project requires the following packages/modules
-MySQLdb
-NumPy
-Matplotlib (optional: to plot statistics)

@@ -1,11 +1,138 @@
 import os
 import sys
-import MySQLdb
 
-from queues import *
+import numpy as np
+import pandas as pd
+import json
+
+#dbstuff
+from sqlalchemy import (create_engine, inspect, desc, Table, Column, Integer, String, DateTime, MetaData)
+from sqlalchemy.sql import select
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
 import aux
+import data
+from queues import *
 
-def loadQueuedJobData(machine,dir,timestamps):
+def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
+	"""	Creates a new test set independent from one used in training/validation/test sequence """
+	
+	snapshot_file = base_dir+"input/snapshots_"+machine+".txt"
+
+	print 'Opening snapshots file'
+	try:
+		with open(snapshot_file) as f:
+			timestamps_all = f.read().splitlines()
+	except IOError:
+		print "Error opening timestamps file"
+	print 'Done'
+
+	# For completed jobs database
+	with open(db_cred_file) as mysql_creds:
+		conn_config = json.load(mysql_creds)
+
+	hostname=conn_config['host']
+	databasename=conn_config['database']
+	username=conn_config['user']
+	password=conn_config['password']
+	portnumber=conn_config['port']
+
+	istart = timestamps_all.index(tstart)
+	iend = timestamps_all.index(tend)
+
+	print 'Start-end indices for timestamps', istart, iend
+
+	timestamps = timestamps_all[istart:iend]
+
+	queue = {}
+	completed = {}
+
+	print 'Loading queue data'
+	# Get current queue data
+	queue = data.loadQueuedJobData(machine,data_dir,timestamps)
+	print 'Done'
+	
+	print 'Loading completed jobs data'
+	# Get completed jobs data
+	completed = data.loadCompletedJobData(machine,tstart,tend,databasename,username,password,hostname,portnumber)	
+	print 'Done'
+
+	return queue, completed
+
+def create_df(queue, completed, one_hot):
+	"""Packs queued and completed job data in dataframes"""
+	#Pack it in dataframes
+	queuedf=pd.DataFrame([x.to_dict() for x in queue.values()])
+	#rename columns with class labels to apply one-hot later
+	queuedf.rename(columns={'partition':'partition_tag','qos':'qos_tag'},inplace=True)
+	queuedf.sort_values(by=['jobId'],inplace=True)
+
+	#completed
+	compdf=pd.DataFrame([x.to_dict() for x in completed.values()])
+	del compdf['machine']
+	del compdf['partition']
+	del compdf['qos']
+	del compdf['reqNodes']
+	del compdf['reqWalltime']
+	del compdf['obsWalltime']
+	compdf['obsWaitTime']=compdf['obsWaitTime'].astype(float)
+	#observed waittime is label
+	compdf.rename(columns={'obsWaitTime':'obsWaitTime_label'},inplace=True)
+	compdf.sort_values(by=['jobId'],inplace=True)
+	
+	#merge the frames on jobid:
+	alldf=pd.merge(compdf,queuedf,how='inner',on='jobId')
+	del alldf['machine']
+	
+	#only take values where partition is specified
+	alldf.dropna(axis=0,how='any',inplace=True)
+	# TODO temporary for testing 
+	alldf = alldf[alldf.qos_tag != 'serialize']
+	
+	alldf.reset_index(drop=True,inplace=True)
+
+	if one_hot:
+	#generate class labels for one-hot encoding:
+		partitions=list(set(alldf['partition_tag']))
+		qosclasses=list(set(alldf['qos_tag']))
+		hotdf=alldf.copy()
+		hotdf['partition_tag']=alldf.apply(lambda x: partitions.index(x['partition_tag']),axis=1)
+		hotdf['qos_tag']=hotdf.apply(lambda x: qosclasses.index(x['qos_tag']),axis=1)
+		
+		print partitions
+		print qosclasses
+
+		#all columns with "tag" suffixes get one-hot encoded:
+		onehotcolumns=[x for x in hotdf.columns[2:] if 'tag' in x]
+		for feature in onehotcolumns:
+			#what is the number of categories:
+			num_cat=np.max(hotdf[feature])+1
+			#create dataframe to fill
+			fname=feature.split('tag')[0]
+			hotcols=[fname+str(c) for c in range(num_cat)]
+			tmpcols=['jobId']+hotcols
+			tmpdf=pd.DataFrame(columns=tmpcols)
+			tmpdf[['jobId']]=hotdf[['jobId']].copy()
+			for c in hotcols:
+				tmpdf[hotcols]=0.
+			#join back the frames
+			hotdf=pd.merge(hotdf,tmpdf,how='inner',on='jobId').copy()
+			
+			#set the hotcols to the correct values
+			for i in range(num_cat):
+				hotdf.loc[hotdf[feature]==i,fname+str(i)]=1.
+	else:
+		#just copy as a view
+		hotdf=alldf
+	
+	#delete tag columns
+	del hotdf['qos_tag']
+	del hotdf['partition_tag']
+
+	return hotdf
+
+def loadQueuedJobData(machine,data_dir,timestamps):
 	"""Loads jobs data from stored snapshots. One subtlety here 
 	is that the sprio snapshot needs to be read first since it only 
 	stores jobs that are actually in queued state. The sqs output 
@@ -17,8 +144,8 @@ def loadQueuedJobData(machine,dir,timestamps):
 	tempJobs = {}
 	
 	for time in timestamps:
-		snapFileName = dir + "snapshot." + time 
-		prioFileName = dir + "priority-factors." + time 
+		snapFileName = data_dir + "snapshot." + time 
+		prioFileName = data_dir + "priority-factors." + time 
 	
 		#Unzip the file we need
 		os.system("gunzip" + " " + snapFileName + ".gz")
@@ -66,51 +193,76 @@ def loadQueuedJobData(machine,dir,timestamps):
 	return tempJobs
 
 
-def loadCompletedJobData(machine,start,db,user,passwd,table):
+def loadCompletedJobData(machine,start,end,db,user,passwd,hostname,port):
 	"""Loads completed job data from staffdb01. One caveat is that
 	jobs that did not "finish" are not stored so there may be a mismatch
 	in the jobs listed in queue snapshots and the completed jobs list 
 	returned by this function 
 	"""
-	# Open database connection
-	#mdb = MySQLdb.connect("staffdb01","usgweb_ro","rHpJ1ZdEij8=","jobs" )
-	mdb = MySQLdb.connect(db,user,passwd,table)
+
+	#create engine
+	eng = create_engine('mysql://'+user+':'+passwd+'@'+hostname+':'+port+'/'+db)
+	base = declarative_base()
+	base.metadata.bind = eng
+	base.metadata.reflect(bind=eng)
 	
-	# prepare a cursor object using cursor() method
-	cursor = mdb.cursor()
+	#start session
+	session = sessionmaker(bind=eng)
+	sess = session()
 	
 	t0 = start 
 	
-	sql_cmd="SELECT stepid, numnodes, class, dispatch, start, completion, wallclock, wait_secs, superclass, wallclock_requested FROM summary WHERE hostname='"+machine+"' AND start>"+start
-	
-	# execute SQL query using execute() method.
-	cursor.execute(sql_cmd)
+	summary=base.metadata.tables['summary']
+	query=sess.query(
+		             summary.c['stepid'],
+		             summary.c['numnodes'],
+		             summary.c['class'],
+		             summary.c['dispatch'],
+		             summary.c['start'],
+		             summary.c['completion'],
+		             summary.c['wallclock'],
+		             summary.c['wait_secs'],
+		             summary.c['superclass'],
+		             summary.c['wallclock_requested']
+		             ).filter(
+		             summary.c.start>=start,
+	                 #summary.c.completion<=end,
+		             summary.c.hostname==machine
+		             )
 	
 	finishedJobs = {}
 	
 	# Fetch a single row using fetchone() method.
-	for data in cursor.fetchall():
-	    jobId = int(data[0].split('.')[0])
-	    qos = data[2]
-	    partition = data[8]
-	    reqWalltime = data[6]
-	    obsWalltime = data[5]-data[4]
-	    reqNodes = data[1]
-	    obsWaitTime = data[7]
-	
-	    finishedJobs[jobId] = CompletedJob(machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsWaitTime)
-	
-	# disconnect from server
-	mdb.close()
-	
+	for data in query.all():
+		jobId = int(data[0].split('.')[0])
+		qos = data[2]
+		partition = data[8]
+		reqWalltime = data[6]
+		obsWalltime = data[5]-data[4]
+		reqNodes = data[1]
+		obsWaitTime = data[7]
+									
+		finishedJobs[jobId] = CompletedJob(machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsWaitTime)
+							
+    # close session
+	sess.close()
+			
+	#return finished jobs as a list of CompletedJob instances
 	return finishedJobs
 
-
-# Debug/test
 if __name__ == '__main__':
-	print len(coriDebugQ.queuedJobs)
-	print len(coriRegQ.queuedJobs)
-	print len(coriSharedQ.queuedJobs)
+    dir = "/global/homes/a/ankitb/qpredict/data/gz-mar21-apr7-16/"
+    machine = 'cori'
+    tstart = '1459513201'
+    tend = '1459910402'
+    one_hot = True
+    
+    queue,completed = get_data(machine,dir,tstart,tend)
+    hotdf = create_df(queue,completed,one_hot)
+
+	#print len(coriDebugQ.queuedJobs)
+	#print len(coriRegQ.queuedJobs)
+	#print len(coriSharedQ.queuedJobs)
 
 	#for k,v in tmplist.items():
 	#    print v.getPartition()

@@ -1,46 +1,40 @@
 import os
 import sys
-
+# Local imports
 import data
+import test
 from queues import *
 
+import json
+
+import numpy as np
+import pandas as pd
 
 def main():
-	"""Driver routine"""
-	# Global params
-	dir = 
-	tstart = 
-	db = 
-	user = 
-	passwd = 
-	table = 
+    """Driver routine"""
+    # Global params
+    with open('input/params.json') as params:
+    	input = json.load(params)
+
+	base_dir = input['base_dir']
+	data_dir = input['data_dir']
+	db_cred_file = input['db_cred_file']
+	machines = input['machines']
+	tstart = input['tstart']
+	tend = input['tend']
+	one_hot = bool(input['one_hot'])
+	train_fraction = float(input['train_fraction'])
+	validation_fraction = float(input['validation_fraction'])
+	test_fraction = float(input['test_fraction'])
+    
+    for machine in machines:
+		#debug = DebugQueue(machine)
+		#regular = RegQueue(machine)
+		#shared = SharedQueue(machine)
 	
-	for machine in ['cori']:
-		debug = DebugQueue(machine)
-		regular = RegQueue(machine)
-		shared = SharedQueue(machine)
-	 
-		queue = {} # Return object for queue data
-		completed = {} # Return object for completed job data
-	
-		try:
-			with open("snapshots_"+machine+".txt") as f:
-				timestamps = f.read().splitlines()
-		except IOError:
-			print "Error opening timestamps file"
-	
-		# Get current queue data
-		queue = data.loadQueuedJobData(machine,dir,timestamps)
-		
-		debug.queuedJobs  = {k:v for k,v in queue.items() if v.partition == 'debug'} #filter(lambda x: x.partition == 'debug', coriJobList)
-		regular.queuedJobs = {k:v for k,v in queue.items() if (v.partition == 'regular') | (v.partition == 'regularx')} 
-		shared.queuedJobs = {k:v for k,v in queue.items() if v.partition == 'shared'} #filter(lambda x: x.partition == 'shared', coriJobList) 
-	
-		# Get completed jobs data
-		completed = data.loadCompletedJobData(machine,tstart,db,user,passwd,table)
-	
-	
-		# Form input and output vectors to pass to ML routine
+		queue,completed = data.get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend)
+		hotdf = data.create_df(queue,completed,one_hot)
+		test.create_all_sets(hotdf,train_fraction,validation_fraction,test_fraction) 
 
 def sanity_check(check_flag):		
 		if check_flag == 'print_obs':	
