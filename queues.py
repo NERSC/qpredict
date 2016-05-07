@@ -69,9 +69,10 @@ class Job:
 
 
 class QueuedJob(Job):
-	def __init__(self,machine,jobId,partition,qos,reqWalltime,reqNodes,priority,age,fairshare,qos_int,rank_p):
+	def __init__(self,machine,jobId,partition,qos,reqWalltime,reqNodes,eligible_time,priority,age,fairshare,qos_int,rank_p):
 		Job.__init__(self,machine,jobId,partition,qos,reqWalltime,reqNodes)
 		# Known
+		self.eligibleTime = eligible_time
 		self.priority = priority
 		self.age = age
 		self.fairshare = fairshare
@@ -91,6 +92,7 @@ class QueuedJob(Job):
 	def to_dict(self):
 		result=Job.to_dict(self)
 		result['priority']=self.priority
+		result['eligibleTime']=self.eligibleTime
 		result['age']=self.age
 		result['fairshare']=self.fairshare
 		result['qos_int']=self.qos_int

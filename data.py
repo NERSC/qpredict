@@ -13,12 +13,19 @@ from sqlalchemy.orm import sessionmaker
 
 import aux
 import data
+from datetime import datetime as dt
 from queues import *
 
 #this is canonical now
 labelname='obsWaitTime_label'
-featurelist=['age','fairshare','priority','qos_int','rank_p','reqNodes','reqWalltime']
-onehotfeaturelist=['partition','qos']
+featurelist=['age','fairshare','priority','qos_int','rank_p','reqNodes','reqWalltime','timeOfDay']
+onehotfeaturelist=['partition','qos','weekday']
+weekdays=['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+
+#small helper function to get the time of day
+def epoch_to_timeofday(epoch):
+	ts=dt.fromtimestamp(epoch)
+	return (ts - ts.replace(hour=0,minute=0,second=0)).total_seconds()
 
 
 def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
@@ -133,6 +140,14 @@ def create_df(queue, completed, one_hot):
 	"""Packs queued and completed job data in dataframes"""
 	#Pack it in dataframes
 	queuedf=pd.DataFrame([x.to_dict() for x in queue.values()])
+	queuedf.dropna(axis=0,inplace=True)
+
+	#precompute some features and get rid of the eligibleTime
+	queuedf=queuedf[queuedf.eligibleTime>0]
+	queuedf['weekday'] = queuedf.apply(lambda x: dt.fromtimestamp(float(x['eligibleTime'])).weekday(),axis=1)
+	queuedf['timeOfDay'] = queuedf.apply(lambda x: epoch_to_timeofday(float(x['eligibleTime'])),axis=1)
+	del queuedf['eligibleTime']
+	
 	#rename columns with class labels to apply one-hot later
 	ohrenamedict={x[0]:x[1] for x in zip(onehotfeaturelist,[z+'_tag' for z in onehotfeaturelist])}
 	queuedf.rename(columns=ohrenamedict,inplace=True)
@@ -167,35 +182,6 @@ def create_df(queue, completed, one_hot):
 	#determine if one-hot encoding is necessary
 	if one_hot:
 		hotdf=one_hot_encode(alldf)
-#	#generate class labels for one-hot encoding:
-#		partitions=list(set(alldf['partition_tag']))
-#		qosclasses=list(set(alldf['qos_tag']))
-#		hotdf=alldf.copy()
-#		hotdf['partition_tag']=alldf.apply(lambda x: partitions.index(x['partition_tag']),axis=1)
-#		hotdf['qos_tag']=hotdf.apply(lambda x: qosclasses.index(x['qos_tag']),axis=1)
-#		
-#		print partitions
-#		print qosclasses
-#
-#		#all columns with "tag" suffixes get one-hot encoded:
-#		onehotcolumns=[x for x in hotdf.columns[2:] if 'tag' in x]
-#		for feature in onehotcolumns:
-#			#what is the number of categories:
-#			num_cat=np.max(hotdf[feature])+1
-#			#create dataframe to fill
-#			fname=feature.split('tag')[0]
-#			hotcols=[fname+str(c) for c in range(num_cat)]
-#			tmpcols=['jobId']+hotcols
-#			tmpdf=pd.DataFrame(columns=tmpcols)
-#			tmpdf[['jobId']]=hotdf[['jobId']].copy()
-#			for c in hotcols:
-#				tmpdf[hotcols]=0.
-#			#join back the frames
-#			hotdf=pd.merge(hotdf,tmpdf,how='inner',on='jobId').copy()
-#			
-#			#set the hotcols to the correct values
-#			for i in range(num_cat):
-#				hotdf.loc[hotdf[feature]==i,fname+str(i)]=1.
 	else:
 		#just copy as a view
 		hotdf=alldf
@@ -242,7 +228,7 @@ def loadQueuedJobData(machine,data_dir,timestamps):
 				qos_int = int(jobs[7])
 				rank_p = count
 				if jobId not in tempJobs:
-					tempJobs[jobId] = QueuedJob(machine,jobId,None,None,None,None,priority,age,fairshare,qos_int,rank_p)
+					tempJobs[jobId] = QueuedJob(machine,jobId,None,None,None,None,None,priority,age,fairshare,qos_int,rank_p)
 					uniqueJobsInThisSnapshot.append(jobId)
 	
 		with open(snapFileName) as sf:
@@ -250,12 +236,24 @@ def loadQueuedJobData(machine,data_dir,timestamps):
 			for line in sf.readlines():
 				jobs = line.split()
 				jobId = int(jobs[0])
+				eligt = jobs[10]
+				if 'N/A' in eligt:
+					eligt=None
+				else:
+					eligt=int(eligt)
 				if jobId in uniqueJobsInThisSnapshot:
-					tempJobs[jobId].partition = jobs[3]
-					tempJobs[jobId].qos = jobs[4].split('_')[0]
-					tempJobs[jobId].reqNodes = int(jobs[5])	
-					tempJobs[jobId].reqWalltime = aux.convertWalltimeToSecs(jobs[7])
-					tempJobs[jobId].priority = int(jobs[8])
+					#if eligible, everything is golden
+					if eligt:
+						#if eligible, everything is golden
+						tempJobs[jobId].partition = jobs[3]
+						tempJobs[jobId].qos = jobs[4].split('_')[0]
+						tempJobs[jobId].reqNodes = int(jobs[5])	
+						tempJobs[jobId].reqWalltime = aux.convertWalltimeToSecs(jobs[7])
+						tempJobs[jobId].priority = int(jobs[8])
+						tempJobs[jobId].eligibleTime=eligt
+					else:
+						#remove the job, might be added back in later on
+						del tempJobs[jobId]
 	
 		#Done reading and setting up full machine queue
 	
@@ -322,7 +320,7 @@ def loadCompletedJobData(machine,start,end,db,user,passwd,hostname,port):
 							
     # close session
 	sess.close()
-			
+
 	#return finished jobs as a list of CompletedJob instances
 	return finishedJobs
 
