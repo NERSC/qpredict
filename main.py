@@ -17,6 +17,7 @@ def main():
     	input = json.load(params)
 
 	base_dir = input['base_dir']
+	temp_dir = input['temp_dir']
 	data_dir = input['data_dir']
 	db_cred_file = input['db_cred_file']
 	machines = input['machines']
@@ -32,7 +33,7 @@ def main():
 		#regular = RegQueue(machine)
 		#shared = SharedQueue(machine)
 	
-		queue,completed = data.get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend)
+		queue,completed = data.get_data(machine,base_dir,temp_dir,data_dir,db_cred_file,tstart,tend)
 		hotdf = data.create_df(queue,completed,one_hot)
 		test.create_all_sets(hotdf,train_fraction,validation_fraction,test_fraction) 
 

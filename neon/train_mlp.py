@@ -75,7 +75,7 @@ std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
 #std_scale = feature_scaler(type='Standardizer',with_mean=True,with_std=True)
 
 #number of non one-hot encoded features, including ground truth
-num_feat=9
+num_feat=11
 
 # load up the mnist data set
 # split into train and tests sets
@@ -137,7 +137,7 @@ else:
 
 #topology:
 if args.hidden_size<0:
-    args.hidden_size=X_train.shape[1]
+    args.hidden_size=2*X_train.shape[1]+1
     
 layers = [Affine(nout=args.hidden_size, init=init_norm, activation=actfunc),
           Dropout(keep=args.keep_probability),

@@ -78,6 +78,8 @@ class QueuedJob(Job):
 		self.fairshare = fairshare
 		self.qos_int = qos_int
 		self.rank_p = rank_p
+		self.workAhead = None
+		#self.workAheadStd = None
 
 	# TBD
 	predictedWaitTime = 0
@@ -93,6 +95,8 @@ class QueuedJob(Job):
 		result=Job.to_dict(self)
 		result['priority']=self.priority
 		result['eligibleTime']=self.eligibleTime
+		result['workAhead']=self.workAhead
+		#result['workAheadStd']=self.workAheadStd
 		result['age']=self.age
 		result['fairshare']=self.fairshare
 		result['qos_int']=self.qos_int

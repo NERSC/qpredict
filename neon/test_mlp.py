@@ -36,7 +36,7 @@ args = parser.parse_args()
 args.batch_size=1
 
 #do preprocessing
-num_feat = 9
+num_feat = 10
 npzfile = np.load('jobwait_preproc.npz')
 mean = npzfile['mean']
 std = npzfile['std']

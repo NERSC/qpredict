@@ -40,7 +40,7 @@ def init_model():
 #actual prediction routine
 def predict_mlp(inputdf):
     #number of non-one-hot features including label, init model
-    num_feat = 8
+    num_feat = 9
     mlp,mean,std=init_model()
 
     #preprocess

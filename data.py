@@ -1,5 +1,6 @@
 import os
 import sys
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -18,7 +19,7 @@ from queues import *
 
 #this is canonical now
 labelname='obsWaitTime_label'
-featurelist=['age','fairshare','priority','qos_int','rank_p','reqNodes','reqWalltime','timeOfDay']
+featurelist=['age','fairshare','priority','qos_int','rank_p','reqNodes','reqWalltime','timeOfDay','workAhead']
 onehotfeaturelist=['partition','qos','weekday']
 weekdays=['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
 
@@ -28,7 +29,7 @@ def epoch_to_timeofday(epoch):
 	return (ts - ts.replace(hour=0,minute=0,second=0)).total_seconds()
 
 
-def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
+def get_data(machine,base_dir,temp_dir,data_dir,db_cred_file,tstart,tend):
 	"""	Creates a new test set independent from one used in training/validation/test sequence """
 	
 	snapshot_file = base_dir+"input/snapshots_"+machine+".txt"
@@ -61,7 +62,7 @@ def get_data(machine,base_dir,data_dir,db_cred_file,tstart,tend):
 
 	print 'Loading queue data'
 	# Get current queue data
-	queue = data.loadQueuedJobData(machine,data_dir,timestamps)
+	queue = data.loadQueuedJobData(machine,data_dir,temp_dir,timestamps)
 	print 'Done'
 	
 	print 'Loading completed jobs data'
@@ -194,7 +195,7 @@ def create_df(queue, completed, one_hot):
 	return hotdf
 
 
-def loadQueuedJobData(machine,data_dir,timestamps):
+def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 	"""Loads jobs data from stored snapshots. One subtlety here 
 	is that the sprio snapshot needs to be read first since it only 
 	stores jobs that are actually in queued state. The sqs output 
@@ -205,18 +206,41 @@ def loadQueuedJobData(machine,data_dir,timestamps):
 	# Temp dict object
 	tempJobs = {}
 	
+	#csv file which is read or written:
+	csvfile='queuedata_'+str(timestamps[0])+'_to_'+str(timestamps[-1])+'.csv'
+	
+	#if os.path.isfile(data_dir + csvfile):
+		#aggregatedf.read_csv(data_dir + csvfile)
+	
+	# used for creating a comprehensive DF
+	datacols=['jobId','timestamp',
+				'priority', 'age', 'fairshare',
+				'qos_int', 'rank_p', 'partition',
+				'qos','reqWalltime','reqNodes','eligibleTime']
+	#aggregatedf=pd.DataFrame(columns=datacols)
+	
+	#loop over files
 	for time in timestamps:
-		snapFileName = data_dir + "snapshot." + time 
-		prioFileName = data_dir + "priority-factors." + time 
+		snapFileName = "snapshot." + time 
+		prioFileName = "priority-factors." + time 
 	
-		#Unzip the file we need
-		os.system("gunzip" + " " + snapFileName + ".gz")
-		os.system("gunzip" + " " + prioFileName + ".gz")
-	
+		#check if files are unzipped already, if not, unzip
+		if not os.path.isfile(temp_dir + snapFileName):
+			#copy file to temp-directory:
+			shutil.copy (data_dir + snapFileName, temp_dir + snapFileName)
+			os.system("gunzip" + " " + temp_dir + snapFileName + ".gz")
+			
+		if not os.path.isfile(temp_dir + prioFileName):
+			shutil.copy (data_dir + prioFileName, temp_dir + prioFileName)
+			os.system("gunzip" + " " + prio_dir + prioFileName + ".gz")
+		
+		#start reading data
 		count = 0
 		uniqueJobsInThisSnapshot = []
+		allJobsInThisSnapshot = []
+		
 		# Do stuff with the data
-		with open(prioFileName) as pf:
+		with open(temp_dir + prioFileName) as pf:
 			pf.readline()
 			for line in pf.readlines():
 				count += 1
@@ -230,8 +254,23 @@ def loadQueuedJobData(machine,data_dir,timestamps):
 				if jobId not in tempJobs:
 					tempJobs[jobId] = QueuedJob(machine,jobId,None,None,None,None,None,priority,age,fairshare,qos_int,rank_p)
 					uniqueJobsInThisSnapshot.append(jobId)
-	
-		with open(snapFileName) as sf:
+					
+				#append to dataframe
+				allJobsInThisSnapshot.append({'jobId':jobId,'timestamp':time,
+												'priority':priority, 'age':age, 
+												'fairshare':fairshare, 'qos_int': qos_int,
+												'rank_p': rank_p})
+		
+		#temporary df:
+		tmpdf1=pd.DataFrame(allJobsInThisSnapshot)
+		if tmpdf1.empty:
+			print "Priority file ",temp_dir + prioFileName," is empty, skipping!"
+			continue
+		
+		#second set
+		allJobsInThisSnapshot = []
+		
+		with open(temp_dir + snapFileName) as sf:
 			sf.readline()	
 			for line in sf.readlines():
 				jobs = line.split()
@@ -241,6 +280,16 @@ def loadQueuedJobData(machine,data_dir,timestamps):
 					eligt=None
 				else:
 					eligt=int(eligt)
+				
+				#push job into list:
+				allJobsInThisSnapshot.append({'jobId': jobId, 
+											'partition': jobs[3],
+											'qos': jobs[4].split('_')[0],
+											'reqNodes': int(jobs[5]),
+											'reqWalltime': aux.convertWalltimeToSecs(jobs[7]),
+											'eligibleTime': eligt
+											})
+				
 				if jobId in uniqueJobsInThisSnapshot:
 					#if eligible, everything is golden
 					if eligt:
@@ -254,12 +303,51 @@ def loadQueuedJobData(machine,data_dir,timestamps):
 					else:
 						#remove the job, might be added back in later on
 						del tempJobs[jobId]
-	
-		#Done reading and setting up full machine queue
-	
-		# Zip it back up
-		os.system("gzip" + " " + snapFileName)
-		os.system("gzip" + " " + prioFileName)
+		
+		
+		#append the temporary dataframe to the aggregate one:
+		tmpdf2=pd.DataFrame(allJobsInThisSnapshot)
+		if tmpdf2.empty:
+			print "Snapshot file ",temp_dir + snapFileName," is empty, skipping!"
+			continue
+		
+		#merge
+		tmpdf1=pd.merge(tmpdf1,tmpdf2,on='jobId')
+		
+		#sort by rank and drop nan:
+		tmpdf1.sort_values(by=['rank_p'],inplace=True)
+		tmpdf1.dropna(axis=0,inplace=True)
+		tmpdf1.reset_index(drop=True,inplace=True)
+		
+		#compute cumulative sum for workload-ahead:
+		tmpdf1['workAhead']=tmpdf1.apply(lambda x: x['reqWalltime']*x['reqNodes']*10**(-6),axis=1).cumsum().reset_index(drop=True)
+		#tmpdf1['workAheadStd']=tmpdf1.apply(lambda x: x['reqWalltime']*x['reqNodes']*10**(-6),axis=1).cummean().reset_index(drop=True)
+		tmpdf1['workAhead']=tmpdf1['workAhead'].shift()
+		tmpdf1.fillna(0.,axis=0,inplace=True)
+		tmpdf1.set_index('jobId',inplace=True)
+		
+		#add the feature to the jobs in joblist:
+		for job in set(tmpdf1.index):
+			if job in tempJobs:
+				if not tempJobs[job].workAhead:
+					tempJobs[job].workAhead=tmpdf1.get_value(job,'workAhead')
+					#tempJobs[job].workAheadStd=tmpdf1.get_value(job,'workAheadStd')
+		
+		#Concat to aggregatedf
+		#aggregatedf=pd.concat([aggregatedf,tmpdf1])
+		
+		# delete the copied files
+		if os.path.ifsile(temp_dir + snapFileName):
+			os.remove(temp_dir + snapFileName)
+		if os.path.ifsile(temp_dir + prioFileName):
+			os.remove(temp_dir + prioFileName)
+		
+		print tmpdf1
+		quit()
+
+	#store aggregate DF
+	#aggregatedf.reset_index(drop=True,inplace=True)
+	#aggregatedf.to_csv(data_dir + 'queuedata_'+str(timestamps[0])+'_to_'+str(timestamps[-1])+'.csv',index=False)
 	
 	# Exotic queues
 	#tmplist = {k:v for k,v in tempJobs.items() if v.partition != 'shared' and v.partition != 'regular' and v.partition != 'debug'} #filter(lambda x: x.partition != 'shared' and x.partition != 'regular' and x.partition != 'debug' , coriJobList)
