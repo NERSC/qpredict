@@ -36,7 +36,7 @@ args = parser.parse_args()
 args.batch_size=1
 
 #do preprocessing
-num_feat = 10
+num_feat = 11
 npzfile = np.load('jobwait_preproc.npz')
 mean = npzfile['mean']
 std = npzfile['std']
@@ -69,14 +69,19 @@ tmpmat[:,1:num_feat] /= std
 X_test=tmpmat[:,1:]
 y_test=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
+#do one forward pass to get estimates:
+test_set = ArrayIterator(X=X_test, y=y_test, make_onehot=False)
+y_pred=mlp.get_outputs(test_set).clip(min=10.)
+
 # iterate over atomic batches:
 errors=[]
 for i in range(X_test.shape[0]):
     test_set = ArrayIterator(X=X_test[i:i+1,:], y=y_test[i:i+1,:], make_onehot=False)
-    errors.append(mlp.eval(test_set, metric=SmoothL1Metric())[0])
+	#append relative errors
+    errors.append(mlp.eval(test_set, metric=SmoothL1Metric())[0]/np.float(y_pred[i]))
 
-#convert error-value from second to hours:
-errors=[x/3600. for x in errors]
+##convert error-value from second to hours:
+#errors=[x/3600. for x in errors]
 
 # obtain some statistics on the metric score
 meanval=np.mean(errors)
@@ -100,7 +105,7 @@ ax = fig.add_subplot(111)
 plt.yscale('log')
 plt.xlim((0,xmax))
 plt.ylim((0,ymax))
-plt.xlabel('estimation error in hours')
+plt.xlabel('relative estimation error')
 plt.ylabel('log(#entries)')
 bars=plt.bar(X,Y,width=width,label='data')
 vlinemed=plt.vlines(medianval, 0, ymax, colors='r', linewidth=2, linestyles='solid', label='median')
@@ -133,7 +138,7 @@ for idx,pname in enumerate(partitions):
         ax.set_yscale('log')
         ax.set_xlim((0,xmax))
         ax.set_ylim((0,ymax*10))
-        ax.set_xlabel('estimation error in hours')
+        ax.set_xlabel('relative estimation error')
         ax.set_ylabel('log(#entries)')
         if tmperr:
             Y,Xtmp=np.histogram(tmperr,bins=bins)

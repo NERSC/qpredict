@@ -104,14 +104,14 @@ class QueuedJob(Job):
 		return result
 
 class CompletedJob(Job):
-	def __init__(self,machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsWaitTime):
+	def __init__(self,machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsStartTime):
 		Job.__init__(self,machine,jobId,partition,qos,reqWalltime,reqNodes)
-		self.obsWaitTime = obsWaitTime
+		self.obsStartTime = obsStartTime
 		self.obsWalltime = obsWalltime
 	
 	def to_dict(self):
 		result=Job.to_dict(self)
-		result['obsWaitTime']=self.obsWaitTime
+		result['obsStartTime']=self.obsStartTime
 		result['obsWalltime']=self.obsWalltime
 		return result
 

@@ -34,12 +34,17 @@ def get_data(machine,base_dir,temp_dir,data_dir,db_cred_file,tstart,tend):
 	
 	snapshot_file = base_dir+"input/snapshots_"+machine+".txt"
 
-	print 'Opening snapshots file'
-	try:
-		with open(snapshot_file) as f:
-			timestamps_all = f.read().splitlines()
-	except IOError:
-		print "Error opening timestamps file"
+	print 'Determining snapshots'
+	#get all files
+	allfiles=set(os.listdir(data_dir))
+	#get relevant files and filter by start end end times
+	snapfiles=[x for x in allfiles if 'snapshot' in x]
+	snaptimes={int(x.split('.')[1]) for x in snapfiles}
+	priofiles=[x for x in allfiles if 'priority-factors' in x]
+	priotimes={int(x.split('.')[1]) for x in priofiles}
+	commontimes=snaptimes.intersection(priotimes)
+	#get all timestanmps between bounds
+	timestamps=sorted(list({str(x) for x in commontimes if x>=int(tstart) and x<=int(tend)}))
 	print 'Done'
 
 	# For completed jobs database
@@ -51,11 +56,6 @@ def get_data(machine,base_dir,temp_dir,data_dir,db_cred_file,tstart,tend):
 	username=conn_config['user']
 	password=conn_config['password']
 	portnumber=conn_config['port']
-
-	istart = timestamps_all.index(tstart)
-	iend = timestamps_all.index(tend)
-
-	timestamps = timestamps_all#[istart:iend]
 
 	queue = {}
 	completed = {}
@@ -147,7 +147,9 @@ def create_df(queue, completed, one_hot):
 	queuedf=queuedf[queuedf.eligibleTime>0]
 	queuedf['weekday'] = queuedf.apply(lambda x: dt.fromtimestamp(float(x['eligibleTime'])).weekday(),axis=1)
 	queuedf['timeOfDay'] = queuedf.apply(lambda x: epoch_to_timeofday(float(x['eligibleTime'])),axis=1)
+	queuedf['obsWaitTime'] = queuedf['startTime'] - queuedf['eligibleTime']
 	del queuedf['eligibleTime']
+	del queuedf['startTime']
 	
 	#rename columns with class labels to apply one-hot later
 	ohrenamedict={x[0]:x[1] for x in zip(onehotfeaturelist,[z+'_tag' for z in onehotfeaturelist])}
@@ -227,12 +229,21 @@ def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 		#check if files are unzipped already, if not, unzip
 		if not os.path.isfile(temp_dir + snapFileName):
 			#copy file to temp-directory:
-			shutil.copy (data_dir + snapFileName, temp_dir + snapFileName)
-			os.system("gunzip" + " " + temp_dir + snapFileName + ".gz")
+			try:
+				shutil.copy (data_dir + snapFileName + ".gz", temp_dir + snapFileName + ".gz")
+				os.system("gunzip" + " " + temp_dir + snapFileName + ".gz")
+			except:
+				print "File ",data_dir + snapFileName + ".gz", " not found, continue!"
+				continue
 			
 		if not os.path.isfile(temp_dir + prioFileName):
-			shutil.copy (data_dir + prioFileName, temp_dir + prioFileName)
-			os.system("gunzip" + " " + prio_dir + prioFileName + ".gz")
+			#copy to temp-directory
+			try:
+				shutil.copy (data_dir + prioFileName + ".gz", temp_dir + prioFileName + ".gz")
+				os.system("gunzip" + " " + temp_dir + prioFileName + ".gz")
+			except:
+				print "File ",data_dir + prioFileName + ".gz", " not found, continue!"
+				continue
 		
 		#start reading data
 		count = 0
@@ -337,13 +348,14 @@ def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 		#aggregatedf=pd.concat([aggregatedf,tmpdf1])
 		
 		# delete the copied files
-		if os.path.ifsile(temp_dir + snapFileName):
+		if os.path.isfile(temp_dir + snapFileName + ".gz"):
+			os.remove(temp_dir + snapFileName + ".gz")
+		if os.path.isfile(temp_dir + snapFileName):
 			os.remove(temp_dir + snapFileName)
-		if os.path.ifsile(temp_dir + prioFileName):
+		if os.path.isfile(temp_dir + prioFileName + ".gz"):
+			os.remove(temp_dir + prioFileName + ".gz")
+		if os.path.isfile(temp_dir + prioFileName):
 			os.remove(temp_dir + prioFileName)
-		
-		print tmpdf1
-		quit()
 
 	#store aggregate DF
 	#aggregatedf.reset_index(drop=True,inplace=True)
@@ -402,9 +414,10 @@ def loadCompletedJobData(machine,start,end,db,user,passwd,hostname,port):
 		reqWalltime = data[6]
 		obsWalltime = data[5]-data[4]
 		reqNodes = data[1]
-		obsWaitTime = data[7]
+		#ATTENTION, the wait secs stored in the DB does not account for ineligibility
+		obsStartTime = data[4]
 									
-		finishedJobs[jobId] = CompletedJob(machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsWaitTime)
+		finishedJobs[jobId] = CompletedJob(machine,jobId,partition,qos,reqWalltime,reqNodes,obsWalltime,obsStartTime)
 							
     # close session
 	sess.close()
