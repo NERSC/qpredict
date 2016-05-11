@@ -147,9 +147,6 @@ def create_df(queue, completed, one_hot):
 	queuedf=queuedf[queuedf.eligibleTime>0]
 	queuedf['weekday'] = queuedf.apply(lambda x: dt.fromtimestamp(float(x['eligibleTime'])).weekday(),axis=1)
 	queuedf['timeOfDay'] = queuedf.apply(lambda x: epoch_to_timeofday(float(x['eligibleTime'])),axis=1)
-	queuedf['obsWaitTime'] = queuedf['startTime'] - queuedf['eligibleTime']
-	del queuedf['eligibleTime']
-	del queuedf['startTime']
 	
 	#rename columns with class labels to apply one-hot later
 	ohrenamedict={x[0]:x[1] for x in zip(onehotfeaturelist,[z+'_tag' for z in onehotfeaturelist])}
@@ -164,14 +161,21 @@ def create_df(queue, completed, one_hot):
 	del compdf['reqNodes']
 	del compdf['reqWalltime']
 	del compdf['obsWalltime']
-	compdf['obsWaitTime']=compdf['obsWaitTime'].astype(float)
+	#compdf['obsWaitTime']=compdf['obsWaitTime'].astype(float)
 	#observed waittime is label
-	compdf.rename(columns={'obsWaitTime':labelname},inplace=True)
+	#compdf.rename(columns={'obsWaitTime':labelname},inplace=True)
 	compdf.sort_values(by=['jobId'],inplace=True)
 	
 	#merge the frames on jobid:
 	alldf=pd.merge(compdf,queuedf,how='inner',on='jobId')
+	
+	#compute the label
+	alldf[labelname]=alldf['obsStartTime']-alldf['eligibleTime']
+	
+	#remove some unneccesary fields
 	del alldf['machine']
+	del alldf['eligibleTime']
+	del alldf['obsStartTime']
 	
 	#only take values where partition is specified
 	alldf.dropna(axis=0,how='any',inplace=True)

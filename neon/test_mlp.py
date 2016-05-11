@@ -78,16 +78,19 @@ errors=[]
 for i in range(X_test.shape[0]):
     test_set = ArrayIterator(X=X_test[i:i+1,:], y=y_test[i:i+1,:], make_onehot=False)
 	#append relative errors
-    errors.append(mlp.eval(test_set, metric=SmoothL1Metric())[0]/np.float(y_pred[i]))
+    #errors.append(mlp.eval(test_set, metric=SmoothL1Metric())[0]/np.float(y_pred[i]))
+    errors.append(mlp.eval(test_set, metric=SmoothL1Metric())[0])
 
 ##convert error-value from second to hours:
-#errors=[x/3600. for x in errors]
+errors=[x/3600. for x in errors]
 
 # obtain some statistics on the metric score
 meanval=np.mean(errors)
 medianval=np.median(errors)
 central68=(np.percentile(errors, 16),np.percentile(errors, 84))
 central95=(np.percentile(errors, 2.5),np.percentile(errors, 97.5))
+
+print "Test error: mean = ", meanval,", median = ", medianval, ", 68% CL = [",central68[0],"; ",central68[1],"]"
 
 #create histogram
 Y,bins=np.histogram(errors,bins=50)
@@ -105,7 +108,7 @@ ax = fig.add_subplot(111)
 plt.yscale('log')
 plt.xlim((0,xmax))
 plt.ylim((0,ymax))
-plt.xlabel('relative estimation error')
+plt.xlabel('estimation error [h]')
 plt.ylabel('log(#entries)')
 bars=plt.bar(X,Y,width=width,label='data')
 vlinemed=plt.vlines(medianval, 0, ymax, colors='r', linewidth=2, linestyles='solid', label='median')
@@ -138,7 +141,7 @@ for idx,pname in enumerate(partitions):
         ax.set_yscale('log')
         ax.set_xlim((0,xmax))
         ax.set_ylim((0,ymax*10))
-        ax.set_xlabel('relative estimation error')
+        ax.set_xlabel('estimation error [h]')
         ax.set_ylabel('log(#entries)')
         if tmperr:
             Y,Xtmp=np.histogram(tmperr,bins=bins)

@@ -57,12 +57,18 @@ parser.add_argument('--initial_learning_rate',type=float,default=1.e-4,help='ini
 parser.add_argument('--hidden_size',type=int,default=-1,help='size of the hidden layer. -1 means that it is set to the size of the input layer')
 parser.add_argument('--keep_probability',type=float,default=0.5,help='keep probability in dropout layer')
 parser.add_argument('--activation_function',type=str,default='ReLU',help='activation function used: supports ReLU, ELU, Tanh')
+parser.add_argument('--checkpoint_restart',type=str,default=None,help='restart training from checkpoint')
+parser.add_argument('--reset_epochs',action="store_true",help='decide whether to reset number of trained epochs to zero when checkpoint restart is used')
 args = parser.parse_args()
 print "Initial learning rate: ",args.initial_learning_rate
 print "Hidden Size: ",args.hidden_size
 print "Keep probability: ",args.keep_probability
 print "Activation Function: ",args.activation_function
 
+if args.checkpoint_restart:
+    print "Restarting from file: ",args.checkpoint_restart
+    if args.reset_epochs:
+        print "resetting epoch counter."
 
 logger = logging.getLogger()
 logger.setLevel(args.log_thresh)
@@ -153,8 +159,13 @@ cost = GeneralizedCost(costfunc=SmoothL1Loss())
 #optimizer = GradientDescentMomentum(0.0001, momentum_coef=0.9, stochastic_round=args.rounding, schedule=schedule)
 optimizer = Adam(learning_rate=args.initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1.e-8)
 
-# initialize model object
-mlp = Model(layers=layers)
+# initialize model object: restart from checkpoint if necessary
+if not args.checkpoint_restart:
+    mlp = Model(layers=layers)
+else:
+    mlp = Model(args.checkpoint_restart)
+    if args.reset_epochs:
+        mlp.epoch_index=0
 
 # configure callbacks
 if args.callback_args['eval_freq'] is None:
