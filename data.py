@@ -20,7 +20,8 @@ from queues import *
 #this is canonical now
 labelname='obsWaitTime_label'
 featurelist=['age','fairshare','priority','qos_int','rank_p','reqNodes','reqWalltime','timeOfDay','workAhead']
-onehotfeaturelist=['partition','qos','weekday']
+#partition and qos is one combined feature, as there are certain combinations which are not allowed. that reduces the overall number of features
+onehotfeaturelist=['partition-qos','weekday']
 weekdays=['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
 
 #small helper function to get the time of day
@@ -148,11 +149,16 @@ def create_df(queue, completed, one_hot):
 	queuedf['weekday'] = queuedf.apply(lambda x: dt.fromtimestamp(float(x['eligibleTime'])).weekday(),axis=1)
 	queuedf['timeOfDay'] = queuedf.apply(lambda x: epoch_to_timeofday(float(x['eligibleTime'])),axis=1)
 	
+	#merge partition and qos into a combined feature:
+	queuedf['partition-qos']=queuedf['partition']+'-'+queuedf['qos']
+	del queuedf['partition']
+	del queuedf['qos']
+	
 	#rename columns with class labels to apply one-hot later
 	ohrenamedict={x[0]:x[1] for x in zip(onehotfeaturelist,[z+'_tag' for z in onehotfeaturelist])}
 	queuedf.rename(columns=ohrenamedict,inplace=True)
 	queuedf.sort_values(by=['jobId'],inplace=True)
-
+	
 	#completed
 	compdf=pd.DataFrame([x.to_dict() for x in completed.values()])
 	del compdf['machine']
@@ -295,6 +301,11 @@ def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 					eligt=None
 				else:
 					eligt=int(eligt)
+					
+				eststartt = jobs[11]
+				scheduled=0
+				if 'N/A' not in eststartt:
+					scheduled=1
 				
 				#push job into list:
 				allJobsInThisSnapshot.append({'jobId': jobId, 
@@ -302,7 +313,8 @@ def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 											'qos': jobs[4].split('_')[0],
 											'reqNodes': int(jobs[5]),
 											'reqWalltime': aux.convertWalltimeToSecs(jobs[7]),
-											'eligibleTime': eligt
+											'eligibleTime': eligt,
+											'scheduled': scheduled
 											})
 				
 				if jobId in uniqueJobsInThisSnapshot:
@@ -334,8 +346,8 @@ def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 		tmpdf1.dropna(axis=0,inplace=True)
 		tmpdf1.reset_index(drop=True,inplace=True)
 		
-		#compute cumulative sum for workload-ahead:
-		tmpdf1['workAhead']=tmpdf1.apply(lambda x: x['reqWalltime']*x['reqNodes']*10**(-6),axis=1).cumsum().reset_index(drop=True)
+		#compute cumulative sum for workload-ahead, do not include the jobs which do not have an estimated start time, because only those are scheduled:
+		tmpdf1['workAhead']=tmpdf1.apply(lambda x: x['reqWalltime']*x['reqNodes']*10**(-6)*x['scheduled'],axis=1).cumsum().reset_index(drop=True)
 		#tmpdf1['workAheadStd']=tmpdf1.apply(lambda x: x['reqWalltime']*x['reqNodes']*10**(-6),axis=1).cummean().reset_index(drop=True)
 		tmpdf1['workAhead']=tmpdf1['workAhead'].shift()
 		tmpdf1.fillna(0.,axis=0,inplace=True)

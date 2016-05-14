@@ -82,12 +82,17 @@ std_scale = preprocessing.StandardScaler(with_mean=True,with_std=True)
 
 #number of non one-hot encoded features, including ground truth
 num_feat=11
+#we have removed workAhead for testing if it makes a difference
+#num_feat=10
 
 # load up the mnist data set
 # split into train and tests sets
 #load data from csv-files and rescale
 #training
 traindf=pd.DataFrame.from_csv('../csv/cori_data_train.csv')
+
+#remove workAhead feature in order to test its influence:
+#del traindf['workAhead']
 ncols=traindf.shape[1]
 
 tmpmat=traindf.as_matrix()
@@ -102,6 +107,7 @@ y_train=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
 #validation
 validdf=pd.DataFrame.from_csv('../csv/cori_data_validate.csv')
+#del validdf['workAhead']
 ncols=validdf.shape[1]
 tmpmat=validdf.as_matrix()
 tmpmat[:,1:num_feat]=std_scale.transform(tmpmat[:,1:num_feat])
@@ -110,6 +116,7 @@ y_valid=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
 #test
 testdf=pd.DataFrame.from_csv('../csv/cori_data_test.csv')
+#del testdf['workAhead']
 ncols=testdf.shape[1]
 tmpmat=testdf.as_matrix()
 tmpmat[:,1:num_feat]=std_scale.transform(tmpmat[:,1:num_feat])
@@ -125,7 +132,7 @@ train_set = ArrayIterator(X_train, lshape=(X_train.shape[1]), y=y_train, make_on
 valid_set = ArrayIterator(X_valid, lshape=(X_valid.shape[1]), y=y_valid, make_onehot=False)
 # setup a validation data set iterator
 #test_set = CustomDataIterator(X_test, lshape=(X_test.shape[1]), y_c=y_test)
-#test_set = ArrayIterator(X_test, lshape=(X_test.shape[1]), y=y_test, make_onehot=False)
+test_set = ArrayIterator(X_test, lshape=(X_test.shape[1]), y=y_test, make_onehot=False)
 
 # setup weight initialization function
 init_norm = Xavier()
@@ -192,7 +199,7 @@ mlp.save_params("jobwait_model.prm")
 # Reloading saved model
 # This should go in run.py
 mlp=Model("jobwait_model.prm")
-print('Validation set error = %.8f'%(mlp.eval(valid_set, metric=SmoothL1Metric())))
+print('Test set error = %.8f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
 
 # save the preprocessor vectors:
 np.savez("jobwait_preproc", mean=std_scale.mean_, std=std_scale.scale_)
