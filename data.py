@@ -1,6 +1,7 @@
 import os
 import sys
 import shutil
+from tqdm import tqdm
 
 import numpy as np
 import pandas as pd
@@ -33,7 +34,7 @@ def epoch_to_timeofday(epoch):
 def get_data(machine,base_dir,temp_dir,data_dir,db_cred_file,tstart,tend):
 	"""	Creates a new test set independent from one used in training/validation/test sequence """
 	
-	snapshot_file = base_dir+"input/snapshots_"+machine+".txt"
+	#snapshot_file = base_dir+"input/snapshots_"+machine+".txt"
 
 	print 'Determining snapshots'
 	#get all files
@@ -82,6 +83,9 @@ def one_hot_encode(inputdf):
 	#all columns with "tag" suffixes get one-hot encoded:
 	onehotcolumns=[x for x in hotdf.columns[:] if 'tag' in x]
 
+	#drop the first index if desired (startindex=1):
+	startindex=1
+
 	#one-hot-encode one-by-one
 	for feature in onehotcolumns:
 		#all possible values the feature can acquire, sort the list to make sure that it is the same
@@ -98,15 +102,15 @@ def one_hot_encode(inputdf):
 		num_cat=len(categorylist)
 		#create empty dataframe to fill
 		fname=feature.split('tag')[0]
-		hotcols=[fname+str(c) for c in range(num_cat)]
+		hotcols=[fname+str(c) for c in range(startindex,num_cat)]
 		tmpdf=pd.DataFrame(index=np.arange(hotdf.shape[0]),columns=hotcols)
 		for c in hotcols:
 			tmpdf[hotcols]=0.
 		#join back the frames. merge on index, do not create another ID field
 		hotdf=pd.merge(hotdf,tmpdf,how='inner',left_index=True,right_index=True).copy()
 		
-		#set the hotcols to the correct values
-		for i in range(num_cat):
+		#set the hotcols to the correct values, drop the first index if desired:
+		for i in range(startindex,num_cat):
 			hotdf.loc[hotdf[feature]==i,fname+str(i)]=1.
 		
 		#remove feature as it is one-hot encoded now
@@ -176,11 +180,13 @@ def create_df(queue, completed, one_hot):
 	alldf=pd.merge(compdf,queuedf,how='inner',on='jobId')
 	
 	#compute the label
-	alldf[labelname]=alldf['obsStartTime']-alldf['eligibleTime']
+	#alldf[labelname]=alldf['obsStartTime']-alldf['eligibleTime']
+	alldf[labelname]=alldf['obsStartTime']-alldf['timeStamp']
 	
 	#remove some unneccesary fields
 	del alldf['machine']
 	del alldf['eligibleTime']
+	del alldf['timeStamp']
 	del alldf['obsStartTime']
 	
 	#only take values where partition is specified
@@ -232,7 +238,7 @@ def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 	#aggregatedf=pd.DataFrame(columns=datacols)
 	
 	#loop over files
-	for time in timestamps:
+	for time in tqdm(timestamps):
 		snapFileName = "snapshot." + time 
 		prioFileName = "priority-factors." + time 
 	
@@ -327,6 +333,7 @@ def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 						tempJobs[jobId].reqWalltime = aux.convertWalltimeToSecs(jobs[7])
 						tempJobs[jobId].priority = int(jobs[8])
 						tempJobs[jobId].eligibleTime=eligt
+						tempJobs[jobId].timeStamp=int(time)
 					else:
 						#remove the job, might be added back in later on
 						del tempJobs[jobId]
@@ -423,7 +430,7 @@ def loadCompletedJobData(machine,start,end,db,user,passwd,hostname,port):
 	finishedJobs = {}
 	
 	# Fetch a single row using fetchone() method.
-	for data in query.all():
+	for data in tqdm(query.all()):
 		jobId = int(data[0].split('.')[0])
 		qos = data[2]
 		partition = data[8]
@@ -441,25 +448,25 @@ def loadCompletedJobData(machine,start,end,db,user,passwd,hostname,port):
 	#return finished jobs as a list of CompletedJob instances
 	return finishedJobs
 
-if __name__ == '__main__':
-    dir = "/global/homes/a/ankitb/qpredict/data/gz-mar21-apr7-16/"
-    machine = 'cori'
-    tstart = '1459513201'
-    tend = '1459910402'
-    one_hot = True
-    
-    queue,completed = get_data(machine,dir,tstart,tend)
-    hotdf = create_df(queue,completed,one_hot)
-
-	#print len(coriDebugQ.queuedJobs)
-	#print len(coriRegQ.queuedJobs)
-	#print len(coriSharedQ.queuedJobs)
-
-	#for k,v in tmplist.items():
-	#    print v.getPartition()
-
-	#for k,v in coriJobs.items():
-	#	if v.partition == 'shared':
-	#		print v.machine,v.jobId,v.partition,v.qos,v.reqWalltime,v.reqNodes,v.priority,v.age,v.fairshare,v.qos_int,v.rank_p
-else:
+#if __name__ == '__main__':
+#    dir = "/global/homes/t/tkurth/JOBWAITPREDICT/qpredict/data/gz-mar21-apr7-16/"
+#    machine = 'cori'
+#    tstart = '1459513201'
+#    tend = '1459910402'
+#    one_hot = True
+#    
+#    queue,completed = get_data(machine,dir,tstart,tend)
+#    hotdf = create_df(queue,completed,one_hot)
+#
+#	#print len(coriDebugQ.queuedJobs)
+#	#print len(coriRegQ.queuedJobs)
+#	#print len(coriSharedQ.queuedJobs)
+#
+#	#for k,v in tmplist.items():
+#	#    print v.getPartition()
+#
+#	#for k,v in coriJobs.items():
+#	#	if v.partition == 'shared':
+#	#		print v.machine,v.jobId,v.partition,v.qos,v.reqWalltime,v.reqNodes,v.priority,v.age,v.fairshare,v.qos_int,v.rank_p
+#else:
 	print "data module loaded"

@@ -78,6 +78,7 @@ class QueuedJob(Job):
 		self.fairshare = fairshare
 		self.qos_int = qos_int
 		self.rank_p = rank_p
+		self.timeStamp = None
 		self.workAhead = None
 		#self.workAheadStd = None
 
@@ -95,6 +96,7 @@ class QueuedJob(Job):
 		result=Job.to_dict(self)
 		result['priority']=self.priority
 		result['eligibleTime']=self.eligibleTime
+		result['timeStamp']=self.timeStamp
 		result['workAhead']=self.workAhead
 		#result['workAheadStd']=self.workAheadStd
 		result['age']=self.age
