@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-def create_all_sets(hotdf, train_fraction, validation_fraction, test_fraction):
+def create_all_sets(output_dir, hotdf, train_fraction, validation_fraction, test_fraction):
     numrows = hotdf.shape[0]
     rows    = np.arange(numrows)
 
@@ -14,17 +14,17 @@ def create_all_sets(hotdf, train_fraction, validation_fraction, test_fraction):
     #training set
     if train_fraction > 0.:
         train_stop = int(np.floor(train_fraction*numrows))
-        shuffledf[:train_stop].to_csv('csv/cori_data_train.csv',header=True)
+        shuffledf[:train_stop].to_csv(output_dir+'/data_train.csv',header=True)
     else:
         train_stop=0
 
     #validation set
     if validation_fraction > 0.:
         validation_stop = int(np.floor(validation_fraction*numrows))+train_stop
-        shuffledf[train_stop:validation_stop].to_csv('csv/cori_data_validate.csv',header=True)
+        shuffledf[train_stop:validation_stop].to_csv(output_dir+'/data_validate.csv',header=True)
     else:
         validation_stop=train_stop
 
     #test set:
     if test_fraction > 0.:
-        shuffledf[validation_stop:].to_csv('csv/cori_data_test.csv',header=True)
+        shuffledf[validation_stop:].to_csv(output_dir+'/cori_data_test.csv',header=True)

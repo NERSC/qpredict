@@ -249,17 +249,25 @@ def loadQueuedJobData(machine,data_dir,temp_dir,timestamps):
 				shutil.copy (data_dir + snapFileName + ".gz", temp_dir + snapFileName + ".gz")
 				os.system("gunzip" + " " + temp_dir + snapFileName + ".gz")
 			except:
-				print "File ",data_dir + snapFileName + ".gz", " not found, continue!"
+				print "File ",data_dir + snapFileName + ".gz not found, continue!"
 				continue
+		if not os.path.isfile(temp_dir + snapFileName):
+			print "Some problem occured with file ",data_dir + snapFileName + ", continue!"
+			continue
 			
+		
 		if not os.path.isfile(temp_dir + prioFileName):
 			#copy to temp-directory
 			try:
 				shutil.copy (data_dir + prioFileName + ".gz", temp_dir + prioFileName + ".gz")
 				os.system("gunzip" + " " + temp_dir + prioFileName + ".gz")
 			except:
-				print "File ",data_dir + prioFileName + ".gz", " not found, continue!"
+				print "File ",data_dir + prioFileName + ".gz not found, continue!"
 				continue
+		if not os.path.isfile(temp_dir + prioFileName):
+			print "Some problem occured with file ",data_dir + prioFileName + ", continue!"
+			continue
+		
 		
 		#start reading data
 		count = 0

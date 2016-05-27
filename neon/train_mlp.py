@@ -53,13 +53,25 @@ def stop_func(s, v):
 # parse the command line arguments
 # TODO This needs to be called in main with args passed to training
 parser = NeonArgparser(__doc__)
+#dataset
+parser.add_argument('--training_set',type=str,help='csv file with training data')
+parser.add_argument('--validation_set',type=str,help='csv file with validation data')
+parser.add_argument('--test_set',type=str,help='csv file with test data')
+#algorithmic parameters
 parser.add_argument('--initial_learning_rate',type=float,default=1.e-4,help='initial learning rate for the optimizer')
 parser.add_argument('--hidden_size',type=int,default=-1,help='size of the hidden layer. -1 means that it is set to the size of the input layer')
 parser.add_argument('--keep_probability',type=float,default=0.5,help='keep probability in dropout layer')
 parser.add_argument('--activation_function',type=str,default='ReLU',help='activation function used: supports ReLU, ELU, Tanh')
 parser.add_argument('--checkpoint_restart',type=str,default=None,help='restart training from checkpoint')
 parser.add_argument('--reset_epochs',action="store_true",help='decide whether to reset number of trained epochs to zero when checkpoint restart is used')
+#output directory
+parser.add_argument('--output_dir',type=str,help='folder to which the output will be stored')
 args = parser.parse_args()
+print "Training set: ", args.training_set
+print "Validation set: ",args.validation_set
+print "Test set: ",args.test_set
+print "Output set: ",args.output_dir
+#parameters
 print "Initial learning rate: ",args.initial_learning_rate
 print "Hidden Size: ",args.hidden_size
 print "Keep probability: ",args.keep_probability
@@ -89,7 +101,7 @@ num_feat=11
 # split into train and tests sets
 #load data from csv-files and rescale
 #training
-traindf=pd.DataFrame.from_csv('../csv/cori_data_train.csv')
+traindf=pd.DataFrame.from_csv(args.training_set)
 
 #remove workAhead feature in order to test its influence:
 #del traindf['workAhead']
@@ -106,7 +118,7 @@ X_train=tmpmat[:,1:]
 y_train=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
 #validation
-validdf=pd.DataFrame.from_csv('../csv/cori_data_validate.csv')
+validdf=pd.DataFrame.from_csv(args.validation_set)
 #del validdf['workAhead']
 ncols=validdf.shape[1]
 tmpmat=validdf.as_matrix()
@@ -115,7 +127,7 @@ X_valid=tmpmat[:,1:]
 y_valid=np.reshape(tmpmat[:,0],(tmpmat[:,0].shape[0],1))
 
 #test
-testdf=pd.DataFrame.from_csv('../csv/cori_data_test.csv')
+testdf=pd.DataFrame.from_csv(args.test_set)
 #del testdf['workAhead']
 ncols=testdf.shape[1]
 tmpmat=testdf.as_matrix()
@@ -194,15 +206,15 @@ print('Validation set error = %.8f'%(valid_error))
 
 # Saving the model
 print 'Saving model parameters!'
-mlp.save_params("jobwait_model.prm")
+mlp.save_params(output_dir+'/jobwait_model.prm')
 
 # Reloading saved model
 # This should go in run.py
-mlp=Model("jobwait_model.prm")
+mlp=Model(output_dir+'/jobwait_model.prm')
 print('Test set error = %.8f'%(mlp.eval(test_set, metric=SmoothL1Metric())))
 
 # save the preprocessor vectors:
-np.savez("jobwait_preproc", mean=std_scale.mean_, std=std_scale.scale_)
+np.savez(output_dir+'/jobwait_preproc', mean=std_scale.mean_, std=std_scale.scale_)
 
 #return error on validation set (for using it with spearmint)
 #return valid_error
